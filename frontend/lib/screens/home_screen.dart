@@ -70,13 +70,22 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!UpdateConfig.checkOnStartup) return;
 
     try {
+      debugPrint('🔍 Verificando actualizaciones...');
+      debugPrint('📌 Versión actual: ${UpdateConfig.currentVersion}');
+
+      // Verificar actualizaciones normalmente
       final updateInfo = await UpdateService.checkForUpdate();
-      if (updateInfo != null && mounted) {
-        UpdateDialog.show(context, updateInfo);
+
+      if (updateInfo != null) {
+        debugPrint('✅ Nueva versión encontrada: ${updateInfo.version}');
+        if (mounted) {
+          UpdateDialog.show(context, updateInfo);
+        }
+      } else {
+        debugPrint('ℹ️ No hay actualizaciones disponibles');
       }
     } catch (e) {
-      // Silenciar errores de verificación para no interrumpir la app
-      debugPrint('Error al verificar actualizaciones: $e');
+      debugPrint('❌ Error al verificar actualizaciones: $e');
     }
   }
 
