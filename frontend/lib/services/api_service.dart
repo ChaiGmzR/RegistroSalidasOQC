@@ -10,9 +10,11 @@ class ApiService {
   // === PART NUMBERS ===
   static Future<List<PartNumber>> getPartNumbers() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.partNumbers),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .get(
+            Uri.parse(ApiConfig.partNumbers),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -30,11 +32,13 @@ class ApiService {
 
   static Future<PartNumber> createPartNumber(PartNumber partNumber) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConfig.partNumbers),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(partNumber.toJson()),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.partNumbers),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(partNumber.toJson()),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -51,11 +55,13 @@ class ApiService {
 
   static Future<PartNumber> updatePartNumber(PartNumber partNumber) async {
     try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.partNumbers}/${partNumber.id}'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(partNumber.toJson()),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .put(
+            Uri.parse('${ApiConfig.partNumbers}/${partNumber.id}'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(partNumber.toJson()),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -71,9 +77,11 @@ class ApiService {
 
   static Future<void> deletePartNumber(int id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.partNumbers}/$id'),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .delete(
+            Uri.parse('${ApiConfig.partNumbers}/$id'),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode != 200) {
         throw Exception('Error al eliminar número de parte');
@@ -86,9 +94,11 @@ class ApiService {
   // === ESD BOXES ===
   static Future<List<EsdBox>> getEsdBoxes() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.esdBoxes),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .get(
+            Uri.parse(ApiConfig.esdBoxes),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -107,9 +117,11 @@ class ApiService {
   // === OPERATORS ===
   static Future<List<Operator>> getOperators() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.operators),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .get(
+            Uri.parse(ApiConfig.operators),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -125,13 +137,16 @@ class ApiService {
     }
   }
 
-  static Future<Operator?> validateOperatorPin(String employeeId, String pin) async {
+  static Future<Operator?> validateOperatorPin(
+      String employeeId, String pin) async {
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.operators}/validate-pin'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'employee_id': employeeId, 'pin': pin}),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.operators}/validate-pin'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'employee_id': employeeId, 'pin': pin}),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -147,11 +162,13 @@ class ApiService {
 
   static Future<Operator?> validateSupervisorPin(String pin) async {
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.operators}/validate-supervisor'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'pin': pin}),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.operators}/validate-supervisor'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'pin': pin}),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -167,11 +184,13 @@ class ApiService {
 
   static Future<Operator> createOperator(Operator operator) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConfig.operators),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(operator.toJson()),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.operators),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(operator.toJson()),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -188,11 +207,13 @@ class ApiService {
 
   static Future<Operator> updateOperator(Operator operator) async {
     try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.operators}/${operator.id}'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(operator.toJson()),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .put(
+            Uri.parse('${ApiConfig.operators}/${operator.id}'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(operator.toJson()),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -208,9 +229,11 @@ class ApiService {
 
   static Future<void> deleteOperator(int id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.operators}/$id'),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .delete(
+            Uri.parse('${ApiConfig.operators}/$id'),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode != 200) {
         throw Exception('Error al eliminar operador');
@@ -238,7 +261,8 @@ class ApiService {
       if (qcPassed != null) queryParams['qcPassed'] = qcPassed.toString();
       if (limit != null) queryParams['limit'] = limit.toString();
 
-      final uri = Uri.parse(ApiConfig.exitRecords).replace(queryParameters: queryParams);
+      final uri = Uri.parse(ApiConfig.exitRecords)
+          .replace(queryParameters: queryParams);
       final response = await http.get(uri).timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
@@ -259,9 +283,11 @@ class ApiService {
   /// Retorna información sobre el estado del registro si existe
   static Future<Map<String, dynamic>> validateBoxCode(String boxCode) async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.exitRecords}/validate-box/$boxCode'),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.exitRecords}/validate-box/$boxCode'),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -276,13 +302,71 @@ class ApiService {
     }
   }
 
+  /// Crear registro de salida con array de cajas
+  /// Cada caja creará un registro separado en la BD con el mismo folio
+  static Future<Map<String, dynamic>> createExitRecordWithBoxes({
+    required int partNumberId,
+    required int esdBoxId,
+    required int operatorId,
+    required DateTime inspectionDate,
+    required String destination,
+    String? observations,
+    required bool qcPassed,
+    required List<Map<String, dynamic>> boxes, // [{boxCode, quantity}]
+  }) async {
+    try {
+      final now = DateTime.now();
+      final exitDateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
+      final body = {
+        'part_number_id': partNumberId,
+        'esd_box_id': esdBoxId,
+        'operator_id': operatorId,
+        'inspection_date': inspectionDate.toIso8601String().split('T')[0],
+        'exit_date': exitDateStr,
+        'destination': destination,
+        'observations': observations,
+        'qc_passed': qcPassed,
+        'boxes': boxes,
+      };
+
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.exitRecords),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(body),
+          )
+          .timeout(ApiConfig.connectionTimeout);
+
+      if (response.statusCode == 201) {
+        final data = json.decode(response.body);
+        if (data['success']) {
+          return {
+            'success': true,
+            'folio': data['data']['folio'],
+            'recordsCreated': data['data']['recordsCreated'] ?? 1,
+            'totalQuantity': data['data']['totalQuantity'] ?? 0,
+          };
+        }
+      }
+      final error = json.decode(response.body);
+      throw Exception(error['error'] ?? 'Error al crear registro');
+    } catch (e) {
+      throw Exception('Error: $e');
+    }
+  }
+
   static Future<ExitRecord> createExitRecord(ExitRecord record) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConfig.exitRecords),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(record.toJson()),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.exitRecords),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(record.toJson()),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
@@ -299,11 +383,13 @@ class ApiService {
 
   static Future<ExitRecord> updateExitRecord(ExitRecord record) async {
     try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.exitRecords}/${record.id}'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(record.toJson()),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .put(
+            Uri.parse('${ApiConfig.exitRecords}/${record.id}'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(record.toJson()),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -319,11 +405,13 @@ class ApiService {
 
   static Future<void> updateExitRecordStatus(int id, String status) async {
     try {
-      final response = await http.patch(
-        Uri.parse('${ApiConfig.exitRecords}/$id/status'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'status': status}),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .patch(
+            Uri.parse('${ApiConfig.exitRecords}/$id/status'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'status': status}),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode != 200) {
         throw Exception('Error al actualizar estado');
@@ -335,9 +423,11 @@ class ApiService {
 
   static Future<void> deleteExitRecord(int id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.exitRecords}/$id'),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .delete(
+            Uri.parse('${ApiConfig.exitRecords}/$id'),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode != 200) {
         throw Exception('Error al cancelar registro');
@@ -347,7 +437,8 @@ class ApiService {
     }
   }
 
-  static Future<ExitRecordStats> getStats({String? startDate, String? endDate}) async {
+  static Future<ExitRecordStats> getStats(
+      {String? startDate, String? endDate}) async {
     try {
       final queryParams = <String, String>{};
       if (startDate != null) queryParams['startDate'] = startDate;
@@ -372,9 +463,11 @@ class ApiService {
   // === HEALTH CHECK ===
   static Future<bool> checkHealth() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.health),
-      ).timeout(const Duration(seconds: 5));
+      final response = await http
+          .get(
+            Uri.parse(ApiConfig.health),
+          )
+          .timeout(const Duration(seconds: 5));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -385,12 +478,14 @@ class ApiService {
   // === BOX SCANS ===
   static Future<Map<String, dynamic>> getBoxQuantity(String boxCode) async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.boxScans}/quantity/$boxCode'),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.boxScans}/quantity/$boxCode'),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       final data = json.decode(response.body);
-      
+
       if (response.statusCode == 200 && data['success']) {
         return {
           'success': true,
@@ -432,22 +527,24 @@ class ApiService {
     String? boxCodes,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConfig.oqcRejections),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'exit_record_id': exitRecordId,
-          'part_number_id': partNumberId,
-          'operator_id': operatorId,
-          'expected_quantity': expectedQuantity,
-          'actual_quantity': actualQuantity,
-          'rejection_reason': rejectionReason,
-          'box_codes': boxCodes,
-        }),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.oqcRejections),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'exit_record_id': exitRecordId,
+              'part_number_id': partNumberId,
+              'operator_id': operatorId,
+              'expected_quantity': expectedQuantity,
+              'actual_quantity': actualQuantity,
+              'rejection_reason': rejectionReason,
+              'box_codes': boxCodes,
+            }),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       final data = json.decode(response.body);
-      
+
       if (response.statusCode == 201 && data['success']) {
         return {
           'success': true,
@@ -471,7 +568,8 @@ class ApiService {
       if (startDate != null) queryParams['startDate'] = startDate;
       if (endDate != null) queryParams['endDate'] = endDate;
 
-      final uri = Uri.parse(ApiConfig.oqcRejections).replace(queryParameters: queryParams);
+      final uri = Uri.parse(ApiConfig.oqcRejections)
+          .replace(queryParameters: queryParams);
       final response = await http.get(uri).timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
@@ -488,9 +586,11 @@ class ApiService {
 
   static Future<int> getPendingRejectionsCount() async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.oqcRejections}/pending-count'),
-      ).timeout(ApiConfig.connectionTimeout);
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.oqcRejections}/pending-count'),
+          )
+          .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

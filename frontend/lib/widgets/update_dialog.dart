@@ -65,14 +65,14 @@ class _UpdateDialogState extends State<UpdateDialog> {
               ),
               child: Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Versión actual',
+                        Text('Versión actual',
                             style: TextStyle(fontSize: 12, color: Colors.grey)),
                         Text('v${UpdateConfig.currentVersion}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.w500)),
                       ],
                     ),

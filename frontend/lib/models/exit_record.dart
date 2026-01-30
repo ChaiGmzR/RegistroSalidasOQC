@@ -5,9 +5,6 @@ class ExitRecord {
   final int esdBoxId;
   final int operatorId;
   final int quantity;
-  final String? lotNumber;
-  final String? serialStart;
-  final String? serialEnd;
   final DateTime inspectionDate;
   final DateTime? exitDate;
   final String destination;
@@ -16,7 +13,7 @@ class ExitRecord {
   final bool qcPassed;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  
+
   // Campos relacionados
   final String? partNumber;
   final String? partDescription;
@@ -33,9 +30,6 @@ class ExitRecord {
     required this.esdBoxId,
     required this.operatorId,
     required this.quantity,
-    this.lotNumber,
-    this.serialStart,
-    this.serialEnd,
     required this.inspectionDate,
     this.exitDate,
     this.destination = 'Almacen',
@@ -61,29 +55,26 @@ class ExitRecord {
       esdBoxId: json['esd_box_id'] ?? 0,
       operatorId: json['operator_id'] ?? 0,
       quantity: json['quantity'] ?? 0,
-      lotNumber: json['lot_number'],
-      serialStart: json['serial_start'],
-      serialEnd: json['serial_end'],
-      inspectionDate: json['inspection_date'] != null 
-          ? DateTime.parse(json['inspection_date']) 
+      inspectionDate: json['inspection_date'] != null
+          ? DateTime.parse(json['inspection_date'])
           : DateTime.now(),
-      exitDate: json['exit_date'] != null 
-          ? DateTime.parse(json['exit_date']) 
-          : null,
+      exitDate:
+          json['exit_date'] != null ? DateTime.parse(json['exit_date']) : null,
       destination: json['destination'] ?? 'Almacen',
       status: json['status'] ?? 'pending',
       observations: json['observations'],
       qcPassed: json['qc_passed'] == 1 || json['qc_passed'] == true,
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']) 
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
           : null,
-      updatedAt: json['updated_at'] != null 
-          ? DateTime.parse(json['updated_at']) 
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'])
           : null,
       partNumber: json['part_number'],
       partDescription: json['part_description'],
       model: json['model'],
-      boxCode: json['box_code'],
+      // scanned_box_code es el código de caja escaneado, esd_box_type es el tipo de caja ESD
+      boxCode: json['scanned_box_code'] ?? json['box_code'],
       boxCapacity: json['capacity'],
       employeeId: json['employee_id'],
       operatorName: json['operator_name'],
@@ -93,9 +84,10 @@ class ExitRecord {
   Map<String, dynamic> toJson() {
     // Usar la hora local del dispositivo para exit_date
     final now = DateTime.now();
-    final exitDateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+    final exitDateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
-    
+
     return {
       'id': id,
       'folio': folio,
@@ -103,9 +95,6 @@ class ExitRecord {
       'esd_box_id': esdBoxId,
       'operator_id': operatorId,
       'quantity': quantity,
-      'lot_number': lotNumber,
-      'serial_start': serialStart,
-      'serial_end': serialEnd,
       'inspection_date': inspectionDate.toIso8601String().split('T')[0],
       'exit_date': exitDateStr,
       'destination': destination,
@@ -137,9 +126,6 @@ class ExitRecord {
     int? esdBoxId,
     int? operatorId,
     int? quantity,
-    String? lotNumber,
-    String? serialStart,
-    String? serialEnd,
     DateTime? inspectionDate,
     String? destination,
     String? status,
@@ -153,9 +139,6 @@ class ExitRecord {
       esdBoxId: esdBoxId ?? this.esdBoxId,
       operatorId: operatorId ?? this.operatorId,
       quantity: quantity ?? this.quantity,
-      lotNumber: lotNumber ?? this.lotNumber,
-      serialStart: serialStart ?? this.serialStart,
-      serialEnd: serialEnd ?? this.serialEnd,
       inspectionDate: inspectionDate ?? this.inspectionDate,
       destination: destination ?? this.destination,
       status: status ?? this.status,

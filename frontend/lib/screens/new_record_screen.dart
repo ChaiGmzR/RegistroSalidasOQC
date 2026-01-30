@@ -17,7 +17,8 @@ class ScannedBox {
   final String? folderDate;
   final String? lastScan; // Fecha/hora de liberación LQC
   final String? partNumber; // Número de parte extraído del código de caja
-  final bool wasInAlmacen; // Si la caja ya fue registrada previamente en almacén
+  final bool
+      wasInAlmacen; // Si la caja ya fue registrada previamente en almacén
   final String? previousFolio; // Folio del registro previo si existe
 
   ScannedBox({
@@ -40,28 +41,29 @@ class NewRecordScreen extends StatefulWidget {
 
 class _NewRecordScreenState extends State<NewRecordScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   PartNumber? _selectedPartNumber;
-  String? _extractedPartNumber; // Número de parte extraído del QR (sin validar en BD)
+  String?
+      _extractedPartNumber; // Número de parte extraído del QR (sin validar en BD)
   Operator? _selectedOperator;
-  
+
   final _operatorController = TextEditingController();
   final _partNumberController = TextEditingController();
   final _expectedQuantityController = TextEditingController();
   final _observationsController = TextEditingController();
   final _scanController = TextEditingController();
-  
+
   // FocusNodes para flujo de captura
   final _operatorFocusNode = FocusNode();
   final _partNumberFocusNode = FocusNode();
   final _quantityFocusNode = FocusNode();
   final _scanFocusNode = FocusNode();
-  
+
   // Lista de cajas escaneadas
   final List<ScannedBox> _scannedBoxes = [];
   bool _isScanning = false;
-  String? _scanError; 
-  
+  String? _scanError;
+
   DateTime _inspectionDate = DateTime.now();
   bool _qcPassed = true;
   bool _isSubmitting = false;
@@ -93,7 +95,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
   /// Formato 2: I20260106-0011-1142;MAIN;EBR80757422;1; -> EBR80757422 (tercer elemento)
   String? _extractPartNumberFromQR(String qrCode) {
     final trimmed = qrCode.trim();
-    
+
     // Formato 2: Contiene punto y coma (;)
     if (trimmed.contains(';')) {
       final parts = trimmed.split(';');
@@ -106,17 +108,17 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
       }
       return null;
     }
-    
+
     // Formato 1: Código largo que empieza con EBR
     if (trimmed.startsWith('EBR') && trimmed.length >= 11) {
       return trimmed.substring(0, 11);
     }
-    
+
     // Si ya es un número de parte corto (11 chars)
     if (trimmed.length == 11 && trimmed.startsWith('EBR')) {
       return trimmed;
     }
-    
+
     // Devolver como está si no coincide con ningún formato
     return trimmed.isNotEmpty ? trimmed : null;
   }
@@ -143,19 +145,20 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     try {
       // Primero validar si el boxCode ya fue registrado previamente
       final validation = await ApiService.validateBoxCode(boxCode);
-      
+
       if (validation['exists'] == true) {
         final prevDestination = validation['destination'] as String?;
         final prevStatus = validation['status'] as String?;
         final prevFolio = validation['folio'] as String?;
         final prevQcPassed = validation['qcPassed'] as bool? ?? true;
-        
+
         // Caso 1: Ya registrado como salida a almacén
         if (prevQcPassed && prevDestination == 'Almacen') {
           // Si estamos en modo QC Aprobado (almacén), no permitir
           if (_qcPassed) {
             setState(() {
-              _scanError = 'Esta caja ya fue registrada como salida a almacén (Folio: $prevFolio)';
+              _scanError =
+                  'Esta caja ya fue registrada como salida a almacén (Folio: $prevFolio)';
             });
             _scanController.clear();
             _scanFocusNode.requestFocus();
@@ -164,21 +167,23 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
           // Si estamos en modo rechazo, permitir pero marcar como "rechazo de almacén"
           // Este boxCode no podrá ser liberado después
         }
-        
+
         // Caso 2: Ya registrado como contención y aún pendiente
         if (!prevQcPassed && prevStatus == 'pending') {
           setState(() {
-            _scanError = 'Esta caja está en contención pendiente de liberar (Folio: $prevFolio)';
+            _scanError =
+                'Esta caja está en contención pendiente de liberar (Folio: $prevFolio)';
           });
           _scanController.clear();
           _scanFocusNode.requestFocus();
           return;
         }
-        
+
         // Caso 3: Ya registrado como contención (mismo destino que intentamos)
         if (!prevQcPassed && !_qcPassed) {
           setState(() {
-            _scanError = 'Esta caja ya fue registrada como rechazo (Folio: $prevFolio)';
+            _scanError =
+                'Esta caja ya fue registrada como rechazo (Folio: $prevFolio)';
           });
           _scanController.clear();
           _scanFocusNode.requestFocus();
@@ -188,16 +193,16 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
 
       // Obtener información de la caja desde LQC
       final result = await ApiService.getBoxQuantity(boxCode);
-      
+
       if (result['success'] == true) {
         // El part number viene extraído del serial en el backend
         final boxPartNumber = result['partNumber'] as String?;
-        
+
         // Determinar si es un rechazo de almacén (previamente registrado en almacén)
-        final wasInAlmacen = validation['exists'] == true && 
-            (validation['qcPassed'] as bool? ?? true) && 
+        final wasInAlmacen = validation['exists'] == true &&
+            (validation['qcPassed'] as bool? ?? true) &&
             validation['destination'] == 'Almacen';
-        
+
         setState(() {
           _scannedBoxes.add(ScannedBox(
             boxCode: result['boxCode'],
@@ -210,12 +215,13 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
           ));
           _scanError = null;
         });
-        
+
         // Mostrar advertencia si es rechazo de almacén
         if (wasInAlmacen && !_qcPassed) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('⚠️ Esta caja fue liberada previamente a almacén (${validation['folio']}). Es un rechazo de almacén y deberá volver a escanearse.'),
+              content: Text(
+                  '⚠️ Esta caja fue liberada previamente a almacén (${validation['folio']}). Es un rechazo de almacén y deberá volver a escanearse.'),
               backgroundColor: AppTheme.warningColor,
               duration: const Duration(seconds: 5),
             ),
@@ -259,8 +265,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
 
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_extractedPartNumber == null || 
-        _selectedOperator == null) {
+    if (_extractedPartNumber == null || _selectedOperator == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Por favor complete todos los campos requeridos'),
@@ -284,7 +289,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     if (!_qcPassed && _observationsController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Las observaciones son obligatorias al registrar un rechazo'),
+          content: Text(
+              'Las observaciones son obligatorias al registrar un rechazo'),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -293,10 +299,12 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
 
     // Validar que el PN de las cajas coincida con el PN del formulario (case-insensitive)
     final mismatchedBoxes = _scannedBoxes
-        .where((box) => box.partNumber != null && 
-            box.partNumber!.toLowerCase() != _extractedPartNumber?.toLowerCase())
+        .where((box) =>
+            box.partNumber != null &&
+            box.partNumber!.toLowerCase() !=
+                _extractedPartNumber?.toLowerCase())
         .toList();
-    
+
     if (mismatchedBoxes.isNotEmpty) {
       // Si QC está aprobado, no permitir el registro con PN diferentes
       if (_qcPassed) {
@@ -323,13 +331,22 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('El número de parte $_extractedPartNumber no está registrado en el sistema. Contacte al administrador.'),
+            content: Text(
+                'El número de parte $_extractedPartNumber no está registrado en el sistema. Contacte al administrador.'),
             backgroundColor: AppTheme.errorColor,
             duration: const Duration(seconds: 5),
           ),
         );
         return;
       }
+
+      // Preparar array de cajas para enviar al backend (cada caja = un registro)
+      final boxes = _scannedBoxes
+          .map((box) => {
+                'boxCode': box.boxCode,
+                'quantity': box.quantity,
+              })
+          .toList();
 
       // Generar string con detalle de cajas escaneadas
       final boxDetails = _scannedBoxes
@@ -342,48 +359,46 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
       // Identificar cajas que son rechazos de almacén
       final almacenRejections = _scannedBoxes
           .where((box) => box.wasInAlmacen)
-          .map((box) => '${box.boxCode} (Rechazo Almacén - ${box.previousFolio})')
+          .map((box) =>
+              '${box.boxCode} (Rechazo Almacén - ${box.previousFolio})')
           .toList();
-      
+
       // Construir observaciones con información adicional
       String observations = _observationsController.text;
       if (almacenRejections.isNotEmpty) {
-        observations += '\n[RECHAZO DE ALMACÉN: ${almacenRejections.join(", ")}]';
+        observations +=
+            '\n[RECHAZO DE ALMACÉN: ${almacenRejections.join(", ")}]';
       }
-      observations = observations.isEmpty 
-          ? 'Cajas: $boxDetails' 
-          : '$observations\nCajas: $boxDetails';
 
-      final record = ExitRecord(
+      // Usar el nuevo método que crea un registro por cada caja
+      final result = await ApiService.createExitRecordWithBoxes(
         partNumberId: _selectedPartNumber!.id!,
         esdBoxId: 1, // Default box
         operatorId: _selectedOperator!.id!,
-        quantity: _totalQuantity,
-        lotNumber: null,
-        serialStart: null,
-        serialEnd: null,
         inspectionDate: _inspectionDate,
         destination: destination,
         observations: observations,
         qcPassed: _qcPassed,
+        boxes: boxes,
       );
 
-      final provider = context.read<AppProvider>();
-      final created = await provider.createExitRecord(record);
+      if (result['success'] == true && mounted) {
+        final folio = result['folio'] as String;
+        final recordsCreated = result['recordsCreated'] as int;
 
-      if (created != null && mounted) {
         // Si es rechazo, crear registro en tabla de rechazos OQC
         String? rejectionFolio;
-        if (!_qcPassed && created.id != null) {
+        if (!_qcPassed) {
           try {
             // Incluir info de rechazos de almacén en el motivo
             String rejectionReason = _observationsController.text;
             if (almacenRejections.isNotEmpty) {
-              rejectionReason += ' [RECHAZO DE ALMACÉN - Material debe volver a escanearse]';
+              rejectionReason +=
+                  ' [RECHAZO DE ALMACÉN - Material debe volver a escanearse]';
             }
-            
+
             final rejectionResult = await ApiService.createOqcRejection(
-              exitRecordId: created.id!,
+              exitRecordId: 0, // Se asociará por folio
               partNumberId: _selectedPartNumber!.id!,
               operatorId: _selectedOperator!.id!,
               expectedQuantity: expectedQty,
@@ -399,36 +414,37 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
             debugPrint('Error creando rechazo OQC: $e');
           }
         }
-        
+
         // Capturar datos para impresión ANTES de resetear el formulario
         final printData = {
-          'scannedBoxes': _scannedBoxes.map((b) => {
-            'boxCode': b.boxCode,
-            'lqcDate': b.lastScan ?? '',
-          }).toList(),
-          'partNumber': _selectedPartNumber?.partNumber ?? _extractedPartNumber ?? '',
+          'scannedBoxes': _scannedBoxes
+              .map((b) => {
+                    'boxCode': b.boxCode,
+                    'lqcDate': b.lastScan ?? '',
+                  })
+              .toList(),
+          'partNumber':
+              _selectedPartNumber?.partNumber ?? _extractedPartNumber ?? '',
           'partDescription': _selectedPartNumber?.description ?? '',
           'operatorName': _selectedOperator?.name ?? '',
           'operatorId': _selectedOperator?.employeeId ?? '',
           'observations': _observationsController.text,
         };
-        
-        _showSuccessDialog(created, rejectionFolio: rejectionFolio, printData: printData);
+
+        // Recargar registros
+        context.read<AppProvider>().loadExitRecords();
+        context.read<AppProvider>().loadStats();
+
+        _showSuccessDialogWithFolio(folio, recordsCreated,
+            rejectionFolio: rejectionFolio, printData: printData);
         _resetForm();
-        
+
         // PUNTO 3: Focus regresa al campo de operador después de registro exitoso
         Future.delayed(const Duration(milliseconds: 100), () {
           if (mounted) {
             _operatorFocusNode.requestFocus();
           }
         });
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(provider.errorMessage ?? 'Error al crear registro'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
       }
     } catch (e) {
       if (mounted) {
@@ -446,9 +462,12 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     }
   }
 
-  void _showSuccessDialog(ExitRecord record, {String? rejectionFolio, Map<String, dynamic>? printData}) {
-    final isRejected = !record.qcPassed;
-    
+  /// Mostrar diálogo de éxito usando folio y conteo de registros (para nuevo método de creación)
+  void _showSuccessDialogWithFolio(String folio, int recordsCreated,
+      {String? rejectionFolio, Map<String, dynamic>? printData}) {
+    final isRejected = !_qcPassed;
+    final destination = _qcPassed ? 'Almacén' : 'Contención';
+
     // Para liberaciones, cerrar automáticamente después de 3 segundos
     if (!isRejected) {
       showDialog(
@@ -461,7 +480,154 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
               Navigator.of(dialogContext).pop();
             }
           });
-          
+
+          return AlertDialog(
+            icon: const Icon(
+              Icons.check_circle,
+              color: AppTheme.successColor,
+              size: 64,
+            ),
+            title: const Text('Registro Creado'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Folio: $folio',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('$recordsCreated caja(s) registrada(s)'),
+                Text('Cantidad total: $_totalQuantity piezas'),
+                Text('Número de Parte: ${printData?['partNumber'] ?? ''}'),
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.successColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Destino: $destination',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.successColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Este mensaje se cerrará automáticamente...',
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+      return;
+    }
+
+    // Para rechazos, mostrar diálogo con botón de imprimir
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(
+          Icons.warning_amber_rounded,
+          color: AppTheme.warningColor,
+          size: 64,
+        ),
+        title: const Text('Material Rechazado'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Folio: $folio',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            if (rejectionFolio != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Rechazo: $rejectionFolio',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.errorColor,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text('$recordsCreated caja(s) registrada(s)'),
+            Text('Cantidad total: $_totalQuantity piezas'),
+            Text('Número de Parte: ${printData?['partNumber'] ?? ''}'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.errorColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                'Destino: $destination',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.errorColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'El material será enviado al área de contención para revisión.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+          if (printData != null)
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _printRejectionTicketWithFolio(
+                    folio, rejectionFolio, printData);
+              },
+              icon: const Icon(Icons.print),
+              label: const Text('Imprimir'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessDialog(ExitRecord record,
+      {String? rejectionFolio, Map<String, dynamic>? printData}) {
+    final isRejected = !record.qcPassed;
+
+    // Para liberaciones, cerrar automáticamente después de 3 segundos
+    if (!isRejected) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          // Auto-cerrar después de 3 segundos
+          Future.delayed(const Duration(seconds: 3), () {
+            if (Navigator.of(dialogContext).canPop()) {
+              Navigator.of(dialogContext).pop();
+            }
+          });
+
           return AlertDialog(
             icon: const Icon(
               Icons.check_circle,
@@ -482,10 +648,12 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text('Cantidad: ${record.quantity} piezas'),
-                Text('Número de Parte: ${printData?['partNumber'] ?? record.partNumber ?? ''}'),
+                Text(
+                    'Número de Parte: ${printData?['partNumber'] ?? record.partNumber ?? ''}'),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppTheme.successColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
@@ -510,7 +678,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
       );
       return;
     }
-    
+
     // Para rechazos, mostrar diálogo con botón de imprimir
     showDialog(
       context: context,
@@ -545,7 +713,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
             ],
             const SizedBox(height: 16),
             Text('Cantidad: ${record.quantity} piezas'),
-            Text('Número de Parte: ${printData?['partNumber'] ?? record.partNumber ?? ''}'),
+            Text(
+                'Número de Parte: ${printData?['partNumber'] ?? record.partNumber ?? ''}'),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -578,7 +747,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
             onPressed: () {
               Navigator.pop(context);
               if (printData != null) {
-                _printRejectionTicketWithData(record, rejectionFolio, printData);
+                _printRejectionTicketWithData(
+                    record, rejectionFolio, printData);
               }
             },
             icon: const Icon(Icons.print),
@@ -590,20 +760,20 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
   }
 
   Future<void> _printRejectionTicketWithData(
-    ExitRecord record, 
+    ExitRecord record,
     String? rejectionFolio,
     Map<String, dynamic> printData,
   ) async {
     if (rejectionFolio == null) return;
-    
+
     // Convertir a List<Map<String, String>> para compatibilidad con PrintService
     final boxesData = (printData['scannedBoxes'] as List)
         .map((box) => {
-          'boxCode': (box['boxCode'] ?? '').toString(),
-          'lqcDate': (box['lqcDate'] ?? '').toString(),
-        })
+              'boxCode': (box['boxCode'] ?? '').toString(),
+              'lqcDate': (box['lqcDate'] ?? '').toString(),
+            })
         .toList();
-    
+
     await PrintService.printRejectionTicket(
       rejectionFolio: rejectionFolio,
       exitFolio: record.folio ?? '',
@@ -618,12 +788,42 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     );
   }
 
+  /// Imprimir ticket de rechazo usando folio directamente (para nuevo método de creación)
+  Future<void> _printRejectionTicketWithFolio(
+    String folio,
+    String? rejectionFolio,
+    Map<String, dynamic> printData,
+  ) async {
+    if (rejectionFolio == null) return;
+
+    // Convertir a List<Map<String, String>> para compatibilidad con PrintService
+    final boxesData = (printData['scannedBoxes'] as List)
+        .map((box) => {
+              'boxCode': (box['boxCode'] ?? '').toString(),
+              'lqcDate': (box['lqcDate'] ?? '').toString(),
+            })
+        .toList();
+
+    await PrintService.printRejectionTicket(
+      rejectionFolio: rejectionFolio,
+      exitFolio: folio,
+      partNumber: printData['partNumber'] ?? '',
+      partDescription: printData['partDescription'] ?? '',
+      quantity: _totalQuantity,
+      operatorName: printData['operatorName'] ?? '',
+      operatorId: printData['operatorId'] ?? '',
+      observations: printData['observations'] ?? '',
+      boxesData: boxesData,
+      rejectionDate: DateTime.now(),
+    );
+  }
+
   void _showQuantityMismatchDialog(int expectedQty) {
     final difference = _totalQuantity - expectedQty;
-    final diffText = difference > 0 
-        ? '+$difference piezas de más' 
+    final diffText = difference > 0
+        ? '+$difference piezas de más'
         : '${difference.abs()} piezas de menos';
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -701,10 +901,12 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                     final box = mismatchedBoxes[index];
                     return ListTile(
                       dense: true,
-                      leading: const Icon(Icons.inventory_2, color: AppTheme.errorColor),
+                      leading: const Icon(Icons.inventory_2,
+                          color: AppTheme.errorColor),
                       title: Text(
                         box.boxCode,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                       subtitle: Text(
                         'PN de caja: ${box.partNumber ?? "No identificado"}',
@@ -744,7 +946,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text('• Verifique que el número de parte escaneado sea el correcto'),
+              const Text(
+                  '• Verifique que el número de parte escaneado sea el correcto'),
               const Text('• Elimine las cajas que no correspondan al lote'),
               const Text('• Contacte a LQC si hay inconsistencias'),
             ],
@@ -853,7 +1056,10 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       suffixIcon: _selectedOperator != null
                                           ? Tooltip(
                                               message: _selectedOperator!.name,
-                                              child: const Icon(Icons.check_circle, color: AppTheme.successColor, size: 20),
+                                              child: const Icon(
+                                                  Icons.check_circle,
+                                                  color: AppTheme.successColor,
+                                                  size: 20),
                                             )
                                           : null,
                                     ),
@@ -861,10 +1067,12 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       // Buscar operador por employeeId
                                       final op = provider.operators.firstWhere(
                                         (o) => o.employeeId == value.trim(),
-                                        orElse: () => Operator(id: null, employeeId: '', name: ''),
+                                        orElse: () => Operator(
+                                            id: null, employeeId: '', name: ''),
                                       );
                                       setState(() {
-                                        _selectedOperator = op.id != null ? op : null;
+                                        _selectedOperator =
+                                            op.id != null ? op : null;
                                       });
                                     },
                                     onFieldSubmitted: (_) {
@@ -895,31 +1103,49 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       hintText: 'Escanear QR de pieza',
                                       suffixIcon: _extractedPartNumber != null
                                           ? const Tooltip(
-                                              message: 'Número de parte extraído',
-                                              child: Icon(Icons.check_circle, color: AppTheme.successColor, size: 20),
+                                              message:
+                                                  'Número de parte extraído',
+                                              child: Icon(Icons.check_circle,
+                                                  color: AppTheme.successColor,
+                                                  size: 20),
                                             )
                                           : null,
                                     ),
                                     onChanged: (value) {
                                       // Extraer número de parte del QR
-                                      final extractedPN = _extractPartNumberFromQR(value);
-                                      if (extractedPN != null && extractedPN != value.trim()) {
+                                      final extractedPN =
+                                          _extractPartNumberFromQR(value);
+                                      if (extractedPN != null &&
+                                          extractedPN != value.trim()) {
                                         // Si se extrajo un PN diferente, actualizar el campo
-                                        _partNumberController.text = extractedPN;
-                                        _partNumberController.selection = TextSelection.fromPosition(
-                                          TextPosition(offset: extractedPN.length),
+                                        _partNumberController.text =
+                                            extractedPN;
+                                        _partNumberController.selection =
+                                            TextSelection.fromPosition(
+                                          TextPosition(
+                                              offset: extractedPN.length),
                                         );
                                       }
-                                      
+
                                       // Guardar el PN extraído (sin validar en BD)
-                                      final searchPN = extractedPN ?? value.trim();
+                                      final searchPN =
+                                          extractedPN ?? value.trim();
                                       setState(() {
-                                        _extractedPartNumber = searchPN.isNotEmpty ? searchPN : null;
+                                        _extractedPartNumber =
+                                            searchPN.isNotEmpty
+                                                ? searchPN
+                                                : null;
                                         // Buscar en BD solo para obtener el modelo (no es obligatorio que exista)
                                         // Comparación case-insensitive para evitar problemas con configuración del scanner
-                                        final pn = provider.partNumbers.firstWhere(
-                                          (p) => p.partNumber.toLowerCase() == searchPN.toLowerCase(),
-                                          orElse: () => PartNumber(id: null, partNumber: searchPN, standardPack: 0),
+                                        final pn =
+                                            provider.partNumbers.firstWhere(
+                                          (p) =>
+                                              p.partNumber.toLowerCase() ==
+                                              searchPN.toLowerCase(),
+                                          orElse: () => PartNumber(
+                                              id: null,
+                                              partNumber: searchPN,
+                                              standardPack: 0),
                                         );
                                         _selectedPartNumber = pn;
                                       });
@@ -989,7 +1215,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                         isDense: true,
                                       ),
                                       child: Text(
-                                        DateFormat('dd/MM/yyyy').format(_inspectionDate),
+                                        DateFormat('dd/MM/yyyy')
+                                            .format(_inspectionDate),
                                       ),
                                     ),
                                   ),
@@ -1003,18 +1230,22 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade300),
+                                  border:
+                                      Border.all(color: Colors.grey.shade300),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         const Row(
                                           children: [
-                                            Icon(Icons.qr_code_scanner, color: AppTheme.primaryColor, size: 20),
+                                            Icon(Icons.qr_code_scanner,
+                                                color: AppTheme.primaryColor,
+                                                size: 20),
                                             SizedBox(width: 8),
                                             Text(
                                               'Escaneo de Cajas',
@@ -1031,8 +1262,10 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                             vertical: 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: AppTheme.primaryColor.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(16),
+                                            color: AppTheme.primaryColor
+                                                .withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
                                           ),
                                           child: Text(
                                             'Total: $_totalQuantity pzas',
@@ -1046,7 +1279,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 10),
-                                    
+
                                     // Campo de escaneo
                                     TextField(
                                       controller: _scanController,
@@ -1055,20 +1288,26 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                         labelText: 'Escanear código de caja',
                                         hintText: 'Ej: LGB922501026566',
                                         isDense: true,
-                                        prefixIcon: _isScanning 
+                                        prefixIcon: _isScanning
                                             ? const Padding(
                                                 padding: EdgeInsets.all(10),
                                                 child: SizedBox(
                                                   width: 18,
                                                   height: 18,
-                                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                          strokeWidth: 2),
                                                 ),
                                               )
-                                            : const Icon(Icons.qr_code, size: 20),
+                                            : const Icon(Icons.qr_code,
+                                                size: 20),
                                         errorText: _scanError,
                                         suffixIcon: IconButton(
-                                          icon: const Icon(Icons.keyboard_return, size: 20),
-                                          onPressed: () => _onScanSubmit(_scanController.text),
+                                          icon: const Icon(
+                                              Icons.keyboard_return,
+                                              size: 20),
+                                          onPressed: () => _onScanSubmit(
+                                              _scanController.text),
                                           tooltip: 'Agregar caja',
                                         ),
                                       ),
@@ -1077,24 +1316,32 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       autofocus: false,
                                     ),
                                     const SizedBox(height: 10),
-                                    
+
                                     // Lista de cajas escaneadas
                                     Expanded(
                                       child: _scannedBoxes.isEmpty
                                           ? Container(
                                               decoration: BoxDecoration(
                                                 color: Colors.grey.shade100,
-                                                borderRadius: BorderRadius.circular(8),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
                                               ),
                                               child: Center(
                                                 child: Column(
-                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
                                                   children: [
-                                                    Icon(Icons.inbox_outlined, size: 36, color: Colors.grey.shade400),
+                                                    Icon(Icons.inbox_outlined,
+                                                        size: 36,
+                                                        color: Colors
+                                                            .grey.shade400),
                                                     const SizedBox(height: 6),
                                                     Text(
                                                       'Escanee códigos de cajas',
-                                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                                      style: TextStyle(
+                                                          color: Colors
+                                                              .grey.shade600,
+                                                          fontSize: 13),
                                                     ),
                                                   ],
                                                 ),
@@ -1103,103 +1350,172 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                           : ListView.builder(
                                               itemCount: _scannedBoxes.length,
                                               itemBuilder: (context, index) {
-                                                final box = _scannedBoxes[index];
+                                                final box =
+                                                    _scannedBoxes[index];
                                                 // Verificar si el PN coincide (solo es error si hay PN extraído en formulario) - case-insensitive
-                                                final hasError = _extractedPartNumber != null && 
-                                                    box.partNumber != null && 
-                                                    box.partNumber!.toLowerCase() != _extractedPartNumber!.toLowerCase();
-                                                
+                                                final hasError =
+                                                    _extractedPartNumber !=
+                                                            null &&
+                                                        box.partNumber !=
+                                                            null &&
+                                                        box.partNumber!
+                                                                .toLowerCase() !=
+                                                            _extractedPartNumber!
+                                                                .toLowerCase();
+
                                                 // Formatear fecha de lastScan (sin conversión de zona horaria)
                                                 String formattedDate = 'N/A';
                                                 if (box.lastScan != null) {
                                                   try {
                                                     // Parsear como fecha local para evitar conversión de zona horaria
-                                                    final dateStr = box.lastScan!.replaceAll('T', ' ').replaceAll('Z', '');
-                                                    final parts = dateStr.split(' ');
+                                                    final dateStr = box
+                                                        .lastScan!
+                                                        .replaceAll('T', ' ')
+                                                        .replaceAll('Z', '');
+                                                    final parts =
+                                                        dateStr.split(' ');
                                                     if (parts.length >= 2) {
-                                                      final dateParts = parts[0].split('-');
-                                                      final timeParts = parts[1].split(':');
-                                                      if (dateParts.length >= 3 && timeParts.length >= 2) {
-                                                        formattedDate = '${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${timeParts[0]}:${timeParts[1]}';
+                                                      final dateParts =
+                                                          parts[0].split('-');
+                                                      final timeParts =
+                                                          parts[1].split(':');
+                                                      if (dateParts.length >=
+                                                              3 &&
+                                                          timeParts.length >=
+                                                              2) {
+                                                        formattedDate =
+                                                            '${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${timeParts[0]}:${timeParts[1]}';
                                                       }
                                                     }
                                                   } catch (_) {
-                                                    formattedDate = box.lastScan!;
+                                                    formattedDate =
+                                                        box.lastScan!;
                                                   }
                                                 }
-                                                
+
                                                 return Card(
-                                                  margin: const EdgeInsets.only(bottom: 6),
-                                                  color: hasError ? AppTheme.errorColor.withOpacity(0.05) : null,
+                                                  margin: const EdgeInsets.only(
+                                                      bottom: 6),
+                                                  color: hasError
+                                                      ? AppTheme.errorColor
+                                                          .withOpacity(0.05)
+                                                      : null,
                                                   shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    side: hasError 
-                                                        ? const BorderSide(color: AppTheme.errorColor, width: 1)
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    side: hasError
+                                                        ? const BorderSide(
+                                                            color: AppTheme
+                                                                .errorColor,
+                                                            width: 1)
                                                         : BorderSide.none,
                                                   ),
                                                   child: Padding(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 8),
                                                     child: Row(
                                                       children: [
                                                         // Número de caja
                                                         CircleAvatar(
                                                           radius: 14,
-                                                          backgroundColor: hasError 
-                                                              ? AppTheme.errorColor.withOpacity(0.1)
-                                                              : AppTheme.successColor.withOpacity(0.1),
+                                                          backgroundColor: hasError
+                                                              ? AppTheme
+                                                                  .errorColor
+                                                                  .withOpacity(
+                                                                      0.1)
+                                                              : AppTheme
+                                                                  .successColor
+                                                                  .withOpacity(
+                                                                      0.1),
                                                           child: Text(
                                                             '${index + 1}',
                                                             style: TextStyle(
-                                                              fontWeight: FontWeight.bold,
-                                                              color: hasError ? AppTheme.errorColor : AppTheme.successColor,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color: hasError
+                                                                  ? AppTheme
+                                                                      .errorColor
+                                                                  : AppTheme
+                                                                      .successColor,
                                                               fontSize: 12,
                                                             ),
                                                           ),
                                                         ),
-                                                        const SizedBox(width: 12),
+                                                        const SizedBox(
+                                                            width: 12),
                                                         // Información de la caja
                                                         Expanded(
                                                           child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
                                                             children: [
                                                               Text(
                                                                 box.boxCode,
-                                                                style: const TextStyle(
-                                                                  fontFamily: 'monospace',
-                                                                  fontWeight: FontWeight.w600,
+                                                                style:
+                                                                    const TextStyle(
+                                                                  fontFamily:
+                                                                      'monospace',
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
                                                                   fontSize: 13,
                                                                 ),
                                                               ),
-                                                              const SizedBox(height: 2),
+                                                              const SizedBox(
+                                                                  height: 2),
                                                               Row(
                                                                 children: [
                                                                   Icon(
-                                                                    Icons.access_time,
+                                                                    Icons
+                                                                        .access_time,
                                                                     size: 12,
-                                                                    color: Colors.grey.shade600,
+                                                                    color: Colors
+                                                                        .grey
+                                                                        .shade600,
                                                                   ),
-                                                                  const SizedBox(width: 4),
+                                                                  const SizedBox(
+                                                                      width: 4),
                                                                   Text(
                                                                     'LQC: $formattedDate',
-                                                                    style: TextStyle(
-                                                                      fontSize: 11,
-                                                                      color: Colors.grey.shade600,
+                                                                    style:
+                                                                        TextStyle(
+                                                                      fontSize:
+                                                                          11,
+                                                                      color: Colors
+                                                                          .grey
+                                                                          .shade600,
                                                                     ),
                                                                   ),
                                                                   if (hasError) ...[
-                                                                    const SizedBox(width: 8),
+                                                                    const SizedBox(
+                                                                        width:
+                                                                            8),
                                                                     const Icon(
-                                                                      Icons.error,
+                                                                      Icons
+                                                                          .error,
                                                                       size: 12,
-                                                                      color: AppTheme.errorColor,
+                                                                      color: AppTheme
+                                                                          .errorColor,
                                                                     ),
-                                                                    const SizedBox(width: 4),
+                                                                    const SizedBox(
+                                                                        width:
+                                                                            4),
                                                                     Text(
-                                                                      box.partNumber ?? "PN: ?",
-                                                                      style: const TextStyle(
-                                                                        fontSize: 11,
-                                                                        color: AppTheme.errorColor,
-                                                                        fontWeight: FontWeight.bold,
+                                                                      box.partNumber ??
+                                                                          "PN: ?",
+                                                                      style:
+                                                                          const TextStyle(
+                                                                        fontSize:
+                                                                            11,
+                                                                        color: AppTheme
+                                                                            .errorColor,
+                                                                        fontWeight:
+                                                                            FontWeight.bold,
                                                                       ),
                                                                     ),
                                                                   ],
@@ -1210,29 +1526,47 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                                         ),
                                                         // Cantidad y botón eliminar
                                                         Container(
-                                                          padding: const EdgeInsets.symmetric(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
                                                             horizontal: 10,
                                                             vertical: 4,
                                                           ),
-                                                          decoration: BoxDecoration(
-                                                            color: AppTheme.primaryColor,
-                                                            borderRadius: BorderRadius.circular(12),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: AppTheme
+                                                                .primaryColor,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        12),
                                                           ),
                                                           child: Text(
                                                             '${box.quantity} pzas',
-                                                            style: const TextStyle(
-                                                              color: Colors.white,
-                                                              fontWeight: FontWeight.bold,
+                                                            style:
+                                                                const TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
                                                               fontSize: 12,
                                                             ),
                                                           ),
                                                         ),
                                                         IconButton(
-                                                          icon: const Icon(Icons.close, size: 18),
-                                                          onPressed: () => _removeScannedBox(index),
-                                                          color: AppTheme.errorColor,
-                                                          padding: EdgeInsets.zero,
-                                                          constraints: const BoxConstraints(
+                                                          icon: const Icon(
+                                                              Icons.close,
+                                                              size: 18),
+                                                          onPressed: () =>
+                                                              _removeScannedBox(
+                                                                  index),
+                                                          color: AppTheme
+                                                              .errorColor,
+                                                          padding:
+                                                              EdgeInsets.zero,
+                                                          constraints:
+                                                              const BoxConstraints(
                                                             minWidth: 32,
                                                             minHeight: 32,
                                                           ),
@@ -1244,17 +1578,20 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                               },
                                             ),
                                     ),
-                                    
+
                                     // Resumen de cajas
                                     if (_scannedBoxes.isNotEmpty)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 6),
                                         child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
                                               '${_scannedBoxes.length} caja(s)',
-                                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                              style: TextStyle(
+                                                  color: Colors.grey.shade600,
+                                                  fontSize: 12),
                                             ),
                                             TextButton.icon(
                                               onPressed: () {
@@ -1262,11 +1599,17 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                                   _scannedBoxes.clear();
                                                 });
                                               },
-                                              icon: const Icon(Icons.clear_all, size: 16),
-                                              label: const Text('Limpiar', style: TextStyle(fontSize: 12)),
+                                              icon: const Icon(Icons.clear_all,
+                                                  size: 16),
+                                              label: const Text('Limpiar',
+                                                  style:
+                                                      TextStyle(fontSize: 12)),
                                               style: TextButton.styleFrom(
-                                                foregroundColor: AppTheme.errorColor,
-                                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                foregroundColor:
+                                                    AppTheme.errorColor,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 8),
                                               ),
                                             ),
                                           ],
@@ -1302,18 +1645,21 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       style: TextStyle(fontSize: 14),
                                     ),
                                     subtitle: Text(
-                                      _qcPassed 
-                                          ? 'El material cumple con los estándares' 
+                                      _qcPassed
+                                          ? 'El material cumple con los estándares'
                                           : 'El material NO cumple con los estándares',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: _qcPassed ? Colors.grey.shade600 : AppTheme.errorColor,
+                                        color: _qcPassed
+                                            ? Colors.grey.shade600
+                                            : AppTheme.errorColor,
                                       ),
                                     ),
                                     value: _qcPassed,
                                     activeColor: AppTheme.successColor,
                                     dense: true,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 8),
                                     onChanged: (value) {
                                       setState(() {
                                         _qcPassed = value ?? true;
@@ -1357,7 +1703,10 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                 ),
                                 _SummaryRow(
                                   label: 'Modelo',
-                                  value: _selectedPartNumber?.model ?? (_extractedPartNumber != null ? '(No registrado)' : '-'),
+                                  value: _selectedPartNumber?.model ??
+                                      (_extractedPartNumber != null
+                                          ? '(No registrado)'
+                                          : '-'),
                                 ),
                                 _SummaryRow(
                                   label: 'Cajas',
@@ -1372,7 +1721,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                 ),
                                 _SummaryRow(
                                   label: 'Fecha',
-                                  value: DateFormat('dd/MM/yyyy').format(_inspectionDate),
+                                  value: DateFormat('dd/MM/yyyy')
+                                      .format(_inspectionDate),
                                 ),
                                 const SizedBox(height: 12),
                                 Container(
@@ -1388,16 +1738,24 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(
-                                        _qcPassed ? Icons.check_circle : Icons.cancel,
-                                        color: _qcPassed ? AppTheme.successColor : AppTheme.errorColor,
+                                        _qcPassed
+                                            ? Icons.check_circle
+                                            : Icons.cancel,
+                                        color: _qcPassed
+                                            ? AppTheme.successColor
+                                            : AppTheme.errorColor,
                                         size: 20,
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        _qcPassed ? 'QC APROBADO' : 'QC RECHAZADO',
+                                        _qcPassed
+                                            ? 'QC APROBADO'
+                                            : 'QC RECHAZADO',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          color: _qcPassed ? AppTheme.successColor : AppTheme.errorColor,
+                                          color: _qcPassed
+                                              ? AppTheme.successColor
+                                              : AppTheme.errorColor,
                                         ),
                                       ),
                                     ],
@@ -1479,7 +1837,8 @@ class _SummaryRow extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: isHighlighted ? 18 : 14,
-                color: isHighlighted ? AppTheme.primaryColor : AppTheme.textDark,
+                color:
+                    isHighlighted ? AppTheme.primaryColor : AppTheme.textDark,
               ),
               textAlign: TextAlign.end,
               overflow: TextOverflow.ellipsis,

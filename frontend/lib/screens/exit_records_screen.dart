@@ -18,12 +18,12 @@ class ExitRecordsScreen extends StatefulWidget {
 class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   // Filtros para pestaña Liberación
   DateTime? _liberacionStartDate;
   DateTime? _liberacionEndDate;
   final _liberacionSearchController = TextEditingController();
-  
+
   // Filtros para pestaña Rechazos
   String _rechazosStatusFilter = 'all'; // 'all', 'pending', 'released'
   final _rechazosSearchController = TextEditingController();
@@ -33,12 +33,13 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_onTabChanged);
-    
+
     // Por defecto, Liberación muestra registros de hoy
     final today = DateTime.now();
     _liberacionStartDate = DateTime(today.year, today.month, today.day);
-    _liberacionEndDate = DateTime(today.year, today.month, today.day, 23, 59, 59);
-    
+    _liberacionEndDate =
+        DateTime(today.year, today.month, today.day, 23, 59, 59);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadLiberacionRecords();
     });
@@ -55,7 +56,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    
+
     if (_tabController.index == 0) {
       _loadLiberacionRecords();
     } else {
@@ -68,8 +69,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     provider.loadExitRecords(
       startDate: _liberacionStartDate?.toIso8601String().split('T')[0],
       endDate: _liberacionEndDate?.toIso8601String().split('T')[0],
-      partNumber: _liberacionSearchController.text.isEmpty 
-          ? null 
+      partNumber: _liberacionSearchController.text.isEmpty
+          ? null
           : _liberacionSearchController.text,
       qcPassed: true, // Solo registros aprobados
     );
@@ -79,8 +80,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     final provider = context.read<AppProvider>();
     provider.loadExitRecords(
       status: _rechazosStatusFilter == 'all' ? null : _rechazosStatusFilter,
-      partNumber: _rechazosSearchController.text.isEmpty 
-          ? null 
+      partNumber: _rechazosSearchController.text.isEmpty
+          ? null
           : _rechazosSearchController.text,
       qcPassed: false, // Solo registros rechazados
     );
@@ -90,7 +91,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     final today = DateTime.now();
     setState(() {
       _liberacionStartDate = DateTime(today.year, today.month, today.day);
-      _liberacionEndDate = DateTime(today.year, today.month, today.day, 23, 59, 59);
+      _liberacionEndDate =
+          DateTime(today.year, today.month, today.day, 23, 59, 59);
       _liberacionSearchController.clear();
     });
     _loadLiberacionRecords();
@@ -109,9 +111,11 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      initialDateRange: _liberacionStartDate != null && _liberacionEndDate != null
-          ? DateTimeRange(start: _liberacionStartDate!, end: _liberacionEndDate!)
-          : null,
+      initialDateRange:
+          _liberacionStartDate != null && _liberacionEndDate != null
+              ? DateTimeRange(
+                  start: _liberacionStartDate!, end: _liberacionEndDate!)
+              : null,
     );
     if (picked != null) {
       setState(() {
@@ -140,31 +144,34 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     try {
       // Crear contenido CSV (compatible con Excel)
       final StringBuffer csv = StringBuffer();
-      
+
       // Encabezados
-      csv.writeln('Folio,Número de Parte,Modelo,Cantidad,Caja ESD,Lote,Operador,Fecha,${type == 'rechazos' ? 'Estado,' : ''}Observaciones');
-      
+      csv.writeln(
+          'Folio,Número de Parte,Modelo,Cantidad,Código Caja,Operador,Fecha,${type == 'rechazos' ? 'Estado,' : ''}Observaciones');
+
       // Datos
       for (final record in records) {
-        final fecha = record.exitDate != null 
+        final fecha = record.exitDate != null
             ? DateFormat('dd/MM/yyyy HH:mm').format(record.exitDate!)
             : '';
-        final observaciones = (record.observations ?? '').replaceAll(',', ';').replaceAll('\n', ' ');
-        final estado = record.status == 'pending' ? 'En Contención' : 
-                       record.status == 'released' ? 'Liberado' : record.status;
-        
-        csv.writeln(
-          '${record.folio ?? ""},'
-          '${record.partNumber ?? ""},'
-          '${record.model ?? ""},'
-          '${record.quantity},'
-          '${record.boxCode ?? ""},'
-          '${record.lotNumber ?? ""},'
-          '${record.operatorName ?? ""},'
-          '$fecha,'
-          '${type == 'rechazos' ? '$estado,' : ''}'
-          '$observaciones'
-        );
+        final observaciones = (record.observations ?? '')
+            .replaceAll(',', ';')
+            .replaceAll('\n', ' ');
+        final estado = record.status == 'pending'
+            ? 'En Contención'
+            : record.status == 'released'
+                ? 'Liberado'
+                : record.status;
+
+        csv.writeln('${record.folio ?? ""},'
+            '${record.partNumber ?? ""},'
+            '${record.model ?? ""},'
+            '${record.quantity},'
+            '${record.boxCode ?? ""},'
+            '${record.operatorName ?? ""},'
+            '$fecha,'
+            '${type == 'rechazos' ? '$estado,' : ''}'
+            '$observaciones');
       }
 
       // Guardar archivo
@@ -276,7 +283,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
             children: [
               // Pestañas alineadas a la izquierda
               Container(
-                color: const Color(0xFFE8E8E8), // Fondo gris claro para área de pestañas
+                color: const Color(
+                    0xFFE8E8E8), // Fondo gris claro para área de pestañas
                 child: Row(
                   children: [
                     // Las pestañas ocupan 1/5 del ancho
@@ -293,15 +301,18 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                 builder: (context, _) {
                                   final isSelected = _tabController.index == 0;
                                   return Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: isSelected 
-                                          ? const Color(0xFFF5F5F5) // Mismo color que contenido
-                                          : const Color(0xFFE0E0E0), // Más oscuro
+                                      color: isSelected
+                                          ? const Color(
+                                              0xFFF5F5F5) // Mismo color que contenido
+                                          : const Color(
+                                              0xFFE0E0E0), // Más oscuro
                                       border: Border(
                                         bottom: BorderSide(
-                                          color: isSelected 
-                                              ? AppTheme.primaryColor 
+                                          color: isSelected
+                                              ? AppTheme.primaryColor
                                               : Colors.transparent,
                                           width: 2,
                                         ),
@@ -312,8 +323,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: AppTheme.textDark,
-                                        fontWeight: isSelected 
-                                            ? FontWeight.w600 
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
                                             : FontWeight.normal,
                                         fontSize: 13,
                                       ),
@@ -332,15 +343,16 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                 builder: (context, _) {
                                   final isSelected = _tabController.index == 1;
                                   return Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: isSelected 
+                                      color: isSelected
                                           ? const Color(0xFFF5F5F5)
                                           : const Color(0xFFE0E0E0),
                                       border: Border(
                                         bottom: BorderSide(
-                                          color: isSelected 
-                                              ? AppTheme.primaryColor 
+                                          color: isSelected
+                                              ? AppTheme.primaryColor
                                               : Colors.transparent,
                                           width: 2,
                                         ),
@@ -351,8 +363,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: AppTheme.textDark,
-                                        fontWeight: isSelected 
-                                            ? FontWeight.w600 
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
                                             : FontWeight.normal,
                                         fontSize: 13,
                                       ),
@@ -392,9 +404,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
   Widget _buildLiberacionTab(AppProvider provider) {
     // Filtrar solo registros con qc_passed = true
-    final liberacionRecords = provider.exitRecords
-        .where((r) => r.qcPassed)
-        .toList();
+    final liberacionRecords =
+        provider.exitRecords.where((r) => r.qcPassed).toList();
 
     return Column(
       children: [
@@ -478,9 +489,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
   Widget _buildRechazosTab(AppProvider provider) {
     // Filtrar solo registros con qc_passed = false
-    final rechazosRecords = provider.exitRecords
-        .where((r) => !r.qcPassed)
-        .toList();
+    final rechazosRecords =
+        provider.exitRecords.where((r) => !r.qcPassed).toList();
 
     return Column(
       children: [
@@ -608,7 +618,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     );
   }
 
-  Widget _buildDataTable(List<ExitRecord> records, {required bool showStatusColumn}) {
+  Widget _buildDataTable(List<ExitRecord> records,
+      {required bool showStatusColumn}) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Card(
@@ -638,11 +649,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
               numeric: true,
             ),
             const DataColumn2(
-              label: Text('Caja ESD'),
-              size: ColumnSize.S,
-            ),
-            const DataColumn2(
-              label: Text('Lote'),
+              label: Text('Código Caja'),
               size: ColumnSize.M,
             ),
             const DataColumn2(
@@ -698,7 +705,6 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                   ),
                 ),
                 DataCell(Text(record.boxCode ?? '-')),
-                DataCell(Text(record.lotNumber ?? '-')),
                 DataCell(Text(record.operatorName ?? '-')),
                 DataCell(
                   Text(
@@ -818,10 +824,10 @@ class _RecordDetailsDialog extends StatelessWidget {
     if (record.observations == null || record.observations!.isEmpty) {
       return [];
     }
-    
+
     final regex = RegExp(r'BoxCodes:\s*\[([^\]]*)\]');
     final match = regex.firstMatch(record.observations!);
-    
+
     if (match != null && match.group(1) != null) {
       final codesString = match.group(1)!;
       return codesString
@@ -830,7 +836,7 @@ class _RecordDetailsDialog extends StatelessWidget {
           .where((s) => s.isNotEmpty)
           .toList();
     }
-    
+
     return [];
   }
 
@@ -838,12 +844,13 @@ class _RecordDetailsDialog extends StatelessWidget {
     if (record.observations == null || record.observations!.isEmpty) {
       return '-';
     }
-    
+
     String clean = record.observations!
         .replaceAll(RegExp(r'BoxCodes:\s*\[[^\]]*\]\s*'), '')
-        .replaceAll(RegExp(r'\[Rechazo de Almacén - Folio anterior: [^\]]+\]\s*'), '')
+        .replaceAll(
+            RegExp(r'\[Rechazo de Almacén - Folio anterior: [^\]]+\]\s*'), '')
         .trim();
-    
+
     return clean.isEmpty ? '-' : clean;
   }
 
@@ -851,7 +858,7 @@ class _RecordDetailsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final boxCodes = _extractBoxCodes();
     final cleanObservations = _getCleanObservations();
-    
+
     return Dialog(
       child: Container(
         width: 550,
@@ -869,42 +876,45 @@ class _RecordDetailsDialog extends StatelessWidget {
                     'Folio: ${record.folio}',
                     style: AppTheme.headerStyle.copyWith(fontSize: 20),
                   ),
-                  if (!record.qcPassed)
-                    _StatusBadge(status: record.status),
+                  if (!record.qcPassed) _StatusBadge(status: record.status),
                 ],
               ),
             ),
-            
+
             // Banner informativo según tipo
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              color: record.qcPassed 
+              color: record.qcPassed
                   ? Colors.green.withOpacity(0.1)
                   : Colors.orange.withOpacity(0.1),
               child: Row(
                 children: [
                   Icon(
                     record.qcPassed ? Icons.check_circle : Icons.warning_amber,
-                    color: record.qcPassed ? Colors.green[700] : Colors.orange[700],
+                    color: record.qcPassed
+                        ? Colors.green[700]
+                        : Colors.orange[700],
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    record.qcPassed 
+                    record.qcPassed
                         ? 'Registro de Liberación'
                         : 'Registro de Rechazo',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: record.qcPassed ? Colors.green[800] : Colors.orange[800],
+                      color: record.qcPassed
+                          ? Colors.green[800]
+                          : Colors.orange[800],
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             const Divider(height: 1),
-            
+
             // Contenido scrolleable
             Flexible(
               child: SingleChildScrollView(
@@ -919,13 +929,14 @@ class _RecordDetailsDialog extends StatelessWidget {
                     _DetailRow('Operador', record.operatorName ?? '-'),
                     _DetailRow(
                       'Fecha de Inspección',
-                      DateFormat('dd/MM/yyyy HH:mm').format(record.inspectionDate),
+                      DateFormat('dd/MM/yyyy HH:mm')
+                          .format(record.inspectionDate),
                     ),
                     _DetailRow('Destino', record.destination),
                     _DetailRow('Observaciones', cleanObservations),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Tabla de Box Codes
                     if (boxCodes.isNotEmpty) ...[
                       const Text(
@@ -945,7 +956,8 @@ class _RecordDetailsDialog extends StatelessWidget {
                         child: SingleChildScrollView(
                           child: Table(
                             border: TableBorder(
-                              horizontalInside: BorderSide(color: Colors.grey[200]!),
+                              horizontalInside:
+                                  BorderSide(color: Colors.grey[200]!),
                             ),
                             columnWidths: const {
                               0: FixedColumnWidth(50),
@@ -964,14 +976,16 @@ class _RecordDetailsDialog extends StatelessWidget {
                                     padding: EdgeInsets.all(10),
                                     child: Text(
                                       '#',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                   Padding(
                                     padding: EdgeInsets.all(10),
                                     child: Text(
                                       'Box Code',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                 ],
@@ -1011,9 +1025,9 @@ class _RecordDetailsDialog extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             const Divider(height: 1),
-            
+
             // Botón cerrar
             Padding(
               padding: const EdgeInsets.all(16),

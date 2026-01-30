@@ -55,8 +55,12 @@ class UpdateService {
       final currentParts = currentVersion.split('.').map(int.parse).toList();
 
       // Asegurar que ambas tengan 3 partes
-      while (newParts.length < 3) newParts.add(0);
-      while (currentParts.length < 3) currentParts.add(0);
+      while (newParts.length < 3) {
+        newParts.add(0);
+      }
+      while (currentParts.length < 3) {
+        currentParts.add(0);
+      }
 
       for (int i = 0; i < 3; i++) {
         if (newParts[i] > currentParts[i]) return true;

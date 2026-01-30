@@ -3,26 +3,38 @@ import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'dart:io';
 import 'providers/app_provider.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/print_service.dart';
+import 'services/backend_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Inicializar datos de localización para fechas
   await initializeDateFormatting('es', null);
-  
+
   // Cargar configuración de impresión
   await PrintService.loadConfig();
-  
+
+  // Iniciar backend local (solo en desktop, no en web)
+  if (!kIsWeb && Platform.isWindows) {
+    debugPrint('Iniciando backend local...');
+    final backendStarted = await BackendService.start();
+    if (!backendStarted) {
+      debugPrint('WARNING: No se pudo iniciar el backend local');
+    }
+  }
+
   // Configurar ventana solo para escritorio (no web)
-  if (!kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux ||
-      defaultTargetPlatform == TargetPlatform.macOS)) {
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.macOS)) {
     await windowManager.ensureInitialized();
-    
+
     WindowOptions windowOptions = const WindowOptions(
       size: Size(1400, 900),
       minimumSize: Size(1200, 700),
@@ -32,7 +44,7 @@ void main() async {
       titleBarStyle: TitleBarStyle.normal,
       title: 'OQC - Registro de Salidas | Ilsan Electronics',
     );
-    
+
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();

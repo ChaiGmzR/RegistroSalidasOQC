@@ -69,14 +69,12 @@ const initDatabase = async () => {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS exit_records (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        folio VARCHAR(20) NOT NULL UNIQUE,
+        folio VARCHAR(20) NOT NULL,
+        box_code VARCHAR(100),
         part_number_id INT NOT NULL,
         esd_box_id INT NOT NULL,
         operator_id INT NOT NULL,
         quantity INT NOT NULL,
-        lot_number VARCHAR(50),
-        serial_start VARCHAR(50),
-        serial_end VARCHAR(50),
         inspection_date DATE NOT NULL,
         exit_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         destination VARCHAR(100) DEFAULT 'Almacen',
@@ -87,9 +85,73 @@ const initDatabase = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (part_number_id) REFERENCES part_numbers(id),
         FOREIGN KEY (esd_box_id) REFERENCES esd_boxes(id),
-        FOREIGN KEY (operator_id) REFERENCES operators(id)
+        FOREIGN KEY (operator_id) REFERENCES operators(id),
+        INDEX idx_folio (folio),
+        INDEX idx_box_code (box_code)
       )
     `);
+
+    // Migración: Eliminar columnas obsoletas si existen
+    try {
+      const [cols] = await connection.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'exit_records' 
+          AND COLUMN_NAME IN ('lot_number', 'serial_start', 'serial_end')
+      `);
+
+      const columnNames = cols.map(c => c.COLUMN_NAME);
+
+      if (columnNames.includes('lot_number')) {
+        await connection.query(`ALTER TABLE exit_records DROP COLUMN lot_number`);
+        console.log('✅ Columna lot_number eliminada');
+      }
+      if (columnNames.includes('serial_start')) {
+        await connection.query(`ALTER TABLE exit_records DROP COLUMN serial_start`);
+        console.log('✅ Columna serial_start eliminada');
+      }
+      if (columnNames.includes('serial_end')) {
+        await connection.query(`ALTER TABLE exit_records DROP COLUMN serial_end`);
+        console.log('✅ Columna serial_end eliminada');
+      }
+    } catch (err) {
+      // Ignorar errores de migración de columnas obsoletas
+    }
+
+    // Migración: Agregar columna box_code si no existe
+    try {
+      const [boxCodeCol] = await connection.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'exit_records' 
+          AND COLUMN_NAME = 'box_code'
+      `);
+
+      if (boxCodeCol.length === 0) {
+        await connection.query(`ALTER TABLE exit_records ADD COLUMN box_code VARCHAR(100) AFTER folio`);
+        await connection.query(`CREATE INDEX idx_box_code ON exit_records(box_code)`);
+        console.log('✅ Columna box_code agregada a exit_records');
+      }
+    } catch (err) {
+      console.log('ℹ️ Columna box_code ya existe o error:', err.message);
+    }
+
+    // Migración: Quitar constraint UNIQUE de folio si existe
+    try {
+      const [indexes] = await connection.query(`
+        SHOW INDEX FROM exit_records WHERE Column_name = 'folio' AND Non_unique = 0
+      `);
+
+      if (indexes.length > 0) {
+        await connection.query(`ALTER TABLE exit_records DROP INDEX folio`);
+        await connection.query(`CREATE INDEX idx_folio ON exit_records(folio)`);
+        console.log('✅ Constraint UNIQUE de folio eliminado');
+      }
+    } catch (err) {
+      // Ignorar si ya no existe
+    }
 
     // Tabla de detalles de inspección
     await connection.query(`

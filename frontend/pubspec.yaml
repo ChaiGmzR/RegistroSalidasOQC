@@ -1,7 +1,7 @@
 name: oqc_registro_salidas
 description: App de escritorio para registro de salidas OQC - Ilsan Electronics
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -22,6 +22,7 @@ dependencies:
   path_provider: ^2.1.1
   window_manager: ^0.3.7
   archive: ^3.4.9
+  path: ^1.8.3
 
 dev_dependencies:
   flutter_test:
