@@ -9,6 +9,7 @@ import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/print_service.dart';
 import 'services/backend_service.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,14 +49,28 @@ void main() async {
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
+      await windowManager.maximize();
     });
   }
 
   runApp(const OQCApp());
 }
 
-class OQCApp extends StatelessWidget {
+class OQCApp extends StatefulWidget {
   const OQCApp({super.key});
+
+  @override
+  State<OQCApp> createState() => _OQCAppState();
+}
+
+class _OQCAppState extends State<OQCApp> {
+  bool _showSplash = true;
+
+  void _onSplashComplete() {
+    setState(() {
+      _showSplash = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +82,9 @@ class OQCApp extends StatelessWidget {
         title: 'OQC - Registro de Salidas',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
-        home: const HomeScreen(),
+        home: _showSplash
+            ? SplashScreen(onComplete: _onSplashComplete)
+            : const HomeScreen(),
       ),
     );
   }

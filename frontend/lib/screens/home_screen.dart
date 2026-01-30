@@ -129,22 +129,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           horizontal: _isExpanded ? 16 : 15),
                       child: Row(
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppTheme.accentBlue,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'OQC',
-                                style: TextStyle(
-                                  color: AppTheme.textLight,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.asset(
+                              'assets/images/ImagenLogo1.png',
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.contain,
                             ),
                           ),
                           if (_isExpanded) ...[
