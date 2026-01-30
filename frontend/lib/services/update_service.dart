@@ -135,27 +135,22 @@ class UpdateService {
     }
   }
 
-  /// Ejecuta el script de actualización y cierra la app
-  static Future<void> installUpdate(String zipPath) async {
+  /// Ejecuta el instalador descargado
+  static Future<void> installUpdate(String installerPath) async {
     try {
-      // Obtener directorio de la app
-      final appDir = File(Platform.resolvedExecutable).parent.path;
-      final updaterPath = '$appDir\\updater.bat';
-
-      // Verificar que existe el updater
-      if (!await File(updaterPath).exists()) {
-        throw Exception('No se encontró el script de actualización');
+      // Verificar que existe el instalador
+      if (!await File(installerPath).exists()) {
+        throw Exception('No se encontró el instalador descargado');
       }
 
-      // Ejecutar updater con ruta del ZIP y directorio de la app
+      // Ejecutar el instalador .exe directamente
       await Process.start(
-        'cmd.exe',
-        ['/c', updaterPath, zipPath, appDir],
+        installerPath,
+        [],
         mode: ProcessStartMode.detached,
-        workingDirectory: appDir,
       );
 
-      // Cerrar la aplicación actual
+      // Cerrar la aplicación actual para que el instalador pueda completarse
       exit(0);
     } catch (e) {
       print('Error al instalar actualización: $e');

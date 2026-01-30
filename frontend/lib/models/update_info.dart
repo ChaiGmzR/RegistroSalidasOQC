@@ -1,4 +1,6 @@
 /// Modelo para almacenar información de una actualización disponible
+import '../config/update_config.dart';
+
 class UpdateInfo {
   final String version;
   final String tagName;
@@ -21,13 +23,14 @@ class UpdateInfo {
   });
 
   factory UpdateInfo.fromGitHubRelease(Map<String, dynamic> json) {
-    // Obtener el primer asset que sea ZIP
+    // Obtener el primer asset que coincida con el patrón configurado
     final assets = json['assets'] as List<dynamic>? ?? [];
-    Map<String, dynamic>? zipAsset;
+    Map<String, dynamic>? matchingAsset;
+    final pattern = UpdateConfig.assetFilePattern.toLowerCase();
 
     for (var asset in assets) {
-      if (asset['name'].toString().toLowerCase().endsWith('.zip')) {
-        zipAsset = asset;
+      if (asset['name'].toString().toLowerCase().endsWith(pattern)) {
+        matchingAsset = asset;
         break;
       }
     }
@@ -35,12 +38,12 @@ class UpdateInfo {
     return UpdateInfo(
       version: _parseVersion(json['tag_name'] ?? '0.0.0'),
       tagName: json['tag_name'] ?? '',
-      downloadUrl: zipAsset?['browser_download_url'] ?? '',
+      downloadUrl: matchingAsset?['browser_download_url'] ?? '',
       releaseNotes: json['body'] ?? 'Sin notas de versión',
       publishedAt:
           DateTime.tryParse(json['published_at'] ?? '') ?? DateTime.now(),
-      assetSize: zipAsset?['size'] ?? 0,
-      assetName: zipAsset?['name'] ?? '',
+      assetSize: matchingAsset?['size'] ?? 0,
+      assetName: matchingAsset?['name'] ?? '',
       isPrerelease: json['prerelease'] ?? false,
     );
   }
