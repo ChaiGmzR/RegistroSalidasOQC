@@ -1256,26 +1256,25 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                             ),
                                           ],
                                         ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.primaryColor
-                                                .withOpacity(0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                          ),
-                                          child: Text(
-                                            'Total: $_totalQuantity pzas',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: AppTheme.primaryColor,
-                                              fontSize: 13,
+                                        if (_scannedBoxes.isNotEmpty)
+                                          TextButton.icon(
+                                            onPressed: () {
+                                              setState(() {
+                                                _scannedBoxes.clear();
+                                              });
+                                            },
+                                            icon: const Icon(Icons.clear_all,
+                                                size: 16),
+                                            label: const Text('Limpiar',
+                                                style: TextStyle(fontSize: 12)),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor:
+                                                  AppTheme.errorColor,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8),
                                             ),
                                           ),
-                                        ),
                                       ],
                                     ),
                                     const SizedBox(height: 10),
@@ -1317,7 +1316,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                     ),
                                     const SizedBox(height: 10),
 
-                                    // Lista de cajas escaneadas
+                                    // Lista de cajas escaneadas con tabla
                                     Expanded(
                                       child: _scannedBoxes.isEmpty
                                           ? Container(
@@ -1347,274 +1346,402 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                                 ),
                                               ),
                                             )
-                                          : ListView.builder(
-                                              itemCount: _scannedBoxes.length,
-                                              itemBuilder: (context, index) {
-                                                final box =
-                                                    _scannedBoxes[index];
-                                                // Verificar si el PN coincide (solo es error si hay PN extraído en formulario) - case-insensitive
-                                                final hasError =
-                                                    _extractedPartNumber !=
-                                                            null &&
-                                                        box.partNumber !=
-                                                            null &&
-                                                        box.partNumber!
-                                                                .toLowerCase() !=
-                                                            _extractedPartNumber!
-                                                                .toLowerCase();
-
-                                                // Formatear fecha de lastScan (sin conversión de zona horaria)
-                                                String formattedDate = 'N/A';
-                                                if (box.lastScan != null) {
-                                                  try {
-                                                    // Parsear como fecha local para evitar conversión de zona horaria
-                                                    final dateStr = box
-                                                        .lastScan!
-                                                        .replaceAll('T', ' ')
-                                                        .replaceAll('Z', '');
-                                                    final parts =
-                                                        dateStr.split(' ');
-                                                    if (parts.length >= 2) {
-                                                      final dateParts =
-                                                          parts[0].split('-');
-                                                      final timeParts =
-                                                          parts[1].split(':');
-                                                      if (dateParts.length >=
-                                                              3 &&
-                                                          timeParts.length >=
-                                                              2) {
-                                                        formattedDate =
-                                                            '${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${timeParts[0]}:${timeParts[1]}';
-                                                      }
-                                                    }
-                                                  } catch (_) {
-                                                    formattedDate =
-                                                        box.lastScan!;
-                                                  }
-                                                }
-
-                                                return Card(
-                                                  margin: const EdgeInsets.only(
-                                                      bottom: 6),
-                                                  color: hasError
-                                                      ? AppTheme.errorColor
-                                                          .withOpacity(0.05)
-                                                      : null,
-                                                  shape: RoundedRectangleBorder(
+                                          : Column(
+                                              children: [
+                                                // Encabezado de tabla
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 6),
+                                                  decoration: BoxDecoration(
+                                                    color: AppTheme.darkHeader,
                                                     borderRadius:
-                                                        BorderRadius.circular(
-                                                            8),
-                                                    side: hasError
-                                                        ? const BorderSide(
-                                                            color: AppTheme
-                                                                .errorColor,
-                                                            width: 1)
-                                                        : BorderSide.none,
+                                                        const BorderRadius.only(
+                                                      topLeft:
+                                                          Radius.circular(8),
+                                                      topRight:
+                                                          Radius.circular(8),
+                                                    ),
                                                   ),
-                                                  child: Padding(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 8),
-                                                    child: Row(
-                                                      children: [
-                                                        // Número de caja
-                                                        CircleAvatar(
-                                                          radius: 14,
-                                                          backgroundColor: hasError
-                                                              ? AppTheme
-                                                                  .errorColor
-                                                                  .withOpacity(
-                                                                      0.1)
-                                                              : AppTheme
-                                                                  .successColor
-                                                                  .withOpacity(
-                                                                      0.1),
-                                                          child: Text(
-                                                            '${index + 1}',
-                                                            style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: hasError
-                                                                  ? AppTheme
-                                                                      .errorColor
-                                                                  : AppTheme
-                                                                      .successColor,
-                                                              fontSize: 12,
-                                                            ),
+                                                  child: const Row(
+                                                    children: [
+                                                      SizedBox(
+                                                          width:
+                                                              36), // Espacio para número
+                                                      Expanded(
+                                                        flex: 3,
+                                                        child: Text(
+                                                          'Código',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 12,
                                                           ),
                                                         ),
-                                                        const SizedBox(
-                                                            width: 12),
-                                                        // Información de la caja
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Text(
-                                                                box.boxCode,
-                                                                style:
-                                                                    const TextStyle(
-                                                                  fontFamily:
-                                                                      'monospace',
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  fontSize: 13,
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  height: 2),
-                                                              Row(
-                                                                children: [
-                                                                  Icon(
-                                                                    Icons
-                                                                        .access_time,
-                                                                    size: 12,
-                                                                    color: Colors
-                                                                        .grey
-                                                                        .shade600,
-                                                                  ),
-                                                                  const SizedBox(
-                                                                      width: 4),
-                                                                  Text(
-                                                                    'LQC: $formattedDate',
-                                                                    style:
-                                                                        TextStyle(
-                                                                      fontSize:
-                                                                          11,
-                                                                      color: Colors
-                                                                          .grey
-                                                                          .shade600,
-                                                                    ),
-                                                                  ),
-                                                                  if (hasError) ...[
-                                                                    const SizedBox(
-                                                                        width:
-                                                                            8),
-                                                                    const Icon(
-                                                                      Icons
-                                                                          .error,
-                                                                      size: 12,
-                                                                      color: AppTheme
-                                                                          .errorColor,
-                                                                    ),
-                                                                    const SizedBox(
-                                                                        width:
-                                                                            4),
-                                                                    Text(
-                                                                      box.partNumber ??
-                                                                          "PN: ?",
-                                                                      style:
-                                                                          const TextStyle(
-                                                                        fontSize:
-                                                                            11,
-                                                                        color: AppTheme
-                                                                            .errorColor,
-                                                                        fontWeight:
-                                                                            FontWeight.bold,
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                ],
-                                                              ),
-                                                            ],
+                                                      ),
+                                                      Expanded(
+                                                        flex: 2,
+                                                        child: Text(
+                                                          'Fecha LQC',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 12,
                                                           ),
                                                         ),
-                                                        // Cantidad y botón eliminar
-                                                        Container(
+                                                      ),
+                                                      SizedBox(
+                                                        width: 70,
+                                                        child: Text(
+                                                          'Piezas',
+                                                          textAlign:
+                                                              TextAlign.center,
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 12,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      SizedBox(
+                                                          width:
+                                                              32), // Espacio para botón eliminar
+                                                    ],
+                                                  ),
+                                                ),
+                                                // Contenido de la tabla (scrollable)
+                                                Expanded(
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      border: Border.all(
+                                                        color: Colors
+                                                            .grey.shade300,
+                                                      ),
+                                                    ),
+                                                    child: ListView.builder(
+                                                      itemCount:
+                                                          _scannedBoxes.length,
+                                                      itemBuilder:
+                                                          (context, index) {
+                                                        final box =
+                                                            _scannedBoxes[
+                                                                index];
+                                                        // Verificar si el PN coincide
+                                                        final hasError = _extractedPartNumber !=
+                                                                null &&
+                                                            box.partNumber !=
+                                                                null &&
+                                                            box.partNumber!
+                                                                    .toLowerCase() !=
+                                                                _extractedPartNumber!
+                                                                    .toLowerCase();
+
+                                                        // Formatear fecha
+                                                        String formattedDate =
+                                                            'N/A';
+                                                        if (box.lastScan !=
+                                                            null) {
+                                                          try {
+                                                            final dateStr = box
+                                                                .lastScan!
+                                                                .replaceAll(
+                                                                    'T', ' ')
+                                                                .replaceAll(
+                                                                    'Z', '');
+                                                            final parts =
+                                                                dateStr
+                                                                    .split(' ');
+                                                            if (parts.length >=
+                                                                2) {
+                                                              final dateParts =
+                                                                  parts[0]
+                                                                      .split(
+                                                                          '-');
+                                                              final timeParts =
+                                                                  parts[1]
+                                                                      .split(
+                                                                          ':');
+                                                              if (dateParts
+                                                                          .length >=
+                                                                      3 &&
+                                                                  timeParts
+                                                                          .length >=
+                                                                      2) {
+                                                                formattedDate =
+                                                                    '${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${timeParts[0]}:${timeParts[1]}';
+                                                              }
+                                                            }
+                                                          } catch (_) {
+                                                            formattedDate =
+                                                                box.lastScan!;
+                                                          }
+                                                        }
+
+                                                        return Container(
                                                           padding:
                                                               const EdgeInsets
                                                                   .symmetric(
-                                                            horizontal: 10,
-                                                            vertical: 4,
-                                                          ),
+                                                                  horizontal: 8,
+                                                                  vertical: 6),
                                                           decoration:
                                                               BoxDecoration(
-                                                            color: AppTheme
-                                                                .primaryColor,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        12),
-                                                          ),
-                                                          child: Text(
-                                                            '${box.quantity} pzas',
-                                                            style:
-                                                                const TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              fontSize: 12,
+                                                            color: hasError
+                                                                ? AppTheme
+                                                                    .errorColor
+                                                                    .withOpacity(
+                                                                        0.05)
+                                                                : (index.isEven
+                                                                    ? Colors
+                                                                        .grey
+                                                                        .shade50
+                                                                    : Colors
+                                                                        .white),
+                                                            border: Border(
+                                                              bottom:
+                                                                  BorderSide(
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade200,
+                                                              ),
                                                             ),
                                                           ),
-                                                        ),
-                                                        IconButton(
-                                                          icon: const Icon(
-                                                              Icons.close,
-                                                              size: 18),
-                                                          onPressed: () =>
-                                                              _removeScannedBox(
-                                                                  index),
-                                                          color: AppTheme
-                                                              .errorColor,
-                                                          padding:
-                                                              EdgeInsets.zero,
-                                                          constraints:
-                                                              const BoxConstraints(
-                                                            minWidth: 32,
-                                                            minHeight: 32,
+                                                          child: Row(
+                                                            children: [
+                                                              // Número
+                                                              SizedBox(
+                                                                width: 36,
+                                                                child:
+                                                                    CircleAvatar(
+                                                                  radius: 12,
+                                                                  backgroundColor: hasError
+                                                                      ? AppTheme
+                                                                          .errorColor
+                                                                          .withOpacity(
+                                                                              0.1)
+                                                                      : AppTheme
+                                                                          .successColor
+                                                                          .withOpacity(
+                                                                              0.1),
+                                                                  child: Text(
+                                                                    '${index + 1}',
+                                                                    style:
+                                                                        TextStyle(
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                      color: hasError
+                                                                          ? AppTheme
+                                                                              .errorColor
+                                                                          : AppTheme
+                                                                              .successColor,
+                                                                      fontSize:
+                                                                          11,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              // Código
+                                                              Expanded(
+                                                                flex: 3,
+                                                                child: Column(
+                                                                  crossAxisAlignment:
+                                                                      CrossAxisAlignment
+                                                                          .start,
+                                                                  children: [
+                                                                    Text(
+                                                                      box.boxCode,
+                                                                      style:
+                                                                          const TextStyle(
+                                                                        fontFamily:
+                                                                            'monospace',
+                                                                        fontWeight:
+                                                                            FontWeight.w600,
+                                                                        fontSize:
+                                                                            12,
+                                                                      ),
+                                                                    ),
+                                                                    if (hasError)
+                                                                      Row(
+                                                                        children: [
+                                                                          const Icon(
+                                                                              Icons.error,
+                                                                              size: 10,
+                                                                              color: AppTheme.errorColor),
+                                                                          const SizedBox(
+                                                                              width: 2),
+                                                                          Text(
+                                                                            box.partNumber ??
+                                                                                "PN: ?",
+                                                                            style:
+                                                                                const TextStyle(
+                                                                              fontSize: 10,
+                                                                              color: AppTheme.errorColor,
+                                                                              fontWeight: FontWeight.bold,
+                                                                            ),
+                                                                          ),
+                                                                        ],
+                                                                      ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                              // Fecha
+                                                              Expanded(
+                                                                flex: 2,
+                                                                child: Text(
+                                                                  formattedDate,
+                                                                  style:
+                                                                      TextStyle(
+                                                                    fontSize:
+                                                                        11,
+                                                                    color: Colors
+                                                                        .grey
+                                                                        .shade700,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              // Piezas
+                                                              SizedBox(
+                                                                width: 70,
+                                                                child:
+                                                                    Container(
+                                                                  padding: const EdgeInsets
+                                                                      .symmetric(
+                                                                      horizontal:
+                                                                          8,
+                                                                      vertical:
+                                                                          3),
+                                                                  decoration:
+                                                                      BoxDecoration(
+                                                                    color: AppTheme
+                                                                        .primaryColor,
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                            10),
+                                                                  ),
+                                                                  child: Text(
+                                                                    '${box.quantity}',
+                                                                    textAlign:
+                                                                        TextAlign
+                                                                            .center,
+                                                                    style:
+                                                                        const TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                      fontSize:
+                                                                          11,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              // Botón eliminar
+                                                              SizedBox(
+                                                                width: 32,
+                                                                child:
+                                                                    IconButton(
+                                                                  icon: const Icon(
+                                                                      Icons
+                                                                          .close,
+                                                                      size: 16),
+                                                                  onPressed: () =>
+                                                                      _removeScannedBox(
+                                                                          index),
+                                                                  color: AppTheme
+                                                                      .errorColor,
+                                                                  padding:
+                                                                      EdgeInsets
+                                                                          .zero,
+                                                                  constraints:
+                                                                      const BoxConstraints(
+                                                                    minWidth:
+                                                                        28,
+                                                                    minHeight:
+                                                                        28,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
-                                                        ),
-                                                      ],
+                                                        );
+                                                      },
                                                     ),
                                                   ),
-                                                );
-                                              },
+                                                ),
+                                                // Footer fijo con total
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 8),
+                                                  decoration: BoxDecoration(
+                                                    color: AppTheme.primaryColor
+                                                        .withOpacity(0.1),
+                                                    borderRadius:
+                                                        const BorderRadius.only(
+                                                      bottomLeft:
+                                                          Radius.circular(8),
+                                                      bottomRight:
+                                                          Radius.circular(8),
+                                                    ),
+                                                    border: Border.all(
+                                                      color: AppTheme
+                                                          .primaryColor
+                                                          .withOpacity(0.3),
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      Text(
+                                                        '${_scannedBoxes.length} caja(s)',
+                                                        style: TextStyle(
+                                                          color: Colors
+                                                              .grey.shade700,
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 4,
+                                                        ),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: AppTheme
+                                                              .primaryColor,
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(16),
+                                                        ),
+                                                        child: Text(
+                                                          'Total: $_totalQuantity pzas',
+                                                          style:
+                                                              const TextStyle(
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            color: Colors.white,
+                                                            fontSize: 13,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                     ),
-
-                                    // Resumen de cajas
-                                    if (_scannedBoxes.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 6),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              '${_scannedBoxes.length} caja(s)',
-                                              style: TextStyle(
-                                                  color: Colors.grey.shade600,
-                                                  fontSize: 12),
-                                            ),
-                                            TextButton.icon(
-                                              onPressed: () {
-                                                setState(() {
-                                                  _scannedBoxes.clear();
-                                                });
-                                              },
-                                              icon: const Icon(Icons.clear_all,
-                                                  size: 16),
-                                              label: const Text('Limpiar',
-                                                  style:
-                                                      TextStyle(fontSize: 12)),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    AppTheme.errorColor,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 8),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
                                   ],
                                 ),
                               ),
