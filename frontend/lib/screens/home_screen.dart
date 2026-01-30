@@ -295,6 +295,36 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
+                    // Version Display
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: _isExpanded ? 16 : 8,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: _isExpanded
+                            ? MainAxisAlignment.start
+                            : MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: AppTheme.textGray.withAlpha(150),
+                            size: 14,
+                          ),
+                          if (_isExpanded) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              'v${UpdateConfig.currentVersion}',
+                              style: TextStyle(
+                                color: AppTheme.textGray.withAlpha(150),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
                     // Connection Status
                     Consumer<AppProvider>(
                       builder: (context, provider, _) {
