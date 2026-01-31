@@ -7,7 +7,7 @@ class UpdateConfig {
   static const String repoName = 'RegistroSalidasOQC';
 
   /// Versión actual de la aplicación (debe coincidir con pubspec.yaml)
-  static const String currentVersion = '1.0.5';
+  static const String currentVersion = '1.0.6';
 
   /// URL de la API de GitHub para obtener el último release
   static String get latestReleaseUrl =>
@@ -23,6 +23,6 @@ class UpdateConfig {
   /// Verificar actualizaciones al iniciar la app
   static const bool checkOnStartup = true;
 
-  /// Intervalo mínimo entre verificaciones (en horas)
-  static const int checkIntervalHours = 1;
+  /// Intervalo mínimo entre verificaciones (0 = siempre verificar al iniciar)
+  static const int checkIntervalHours = 0;
 }
