@@ -112,6 +112,43 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Crear múltiples registros de salida (uno por caja) con un folio compartido
+router.post('/batch', async (req, res) => {
+  try {
+    const { part_number_id, esd_box_id, operator_id, inspection_date, exit_date, destination, observations, qc_passed, boxes } = req.body;
+
+    if (!boxes || !Array.isArray(boxes) || boxes.length === 0) {
+      return res.status(400).json({ success: false, error: 'Se requiere al menos una caja' });
+    }
+
+    const folio = await ExitRecordModel.generateFolio();
+    const boxDetails = boxes.map(b => `${b.boxCode}: ${b.quantity} pzas`).join(', ');
+    const totalQuantity = boxes.reduce((sum, b) => sum + (b.quantity || 0), 0);
+    const fullObservations = `Cajas: ${boxDetails}${observations ? '\n' + observations : ''}`;
+
+    const { id } = await ExitRecordModel.createWithFolio(folio, {
+      part_number_id,
+      esd_box_id,
+      operator_id,
+      quantity: totalQuantity,
+      inspection_date,
+      exit_date,
+      destination,
+      observations: fullObservations,
+      qc_passed,
+    });
+
+    res.status(201).json({
+      success: true,
+      folio,
+      recordsCreated: boxes.length,
+      recordId: id,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Actualizar registro
 router.put('/:id', async (req, res) => {
   try {

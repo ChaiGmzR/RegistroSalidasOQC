@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../providers/app_provider.dart';
 import '../models/exit_record.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
 class ExitRecordsScreen extends StatefulWidget {
@@ -27,6 +28,10 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
   // Filtros para pestaña Rechazos
   String _rechazosStatusFilter = 'all'; // 'all', 'pending', 'released'
   final _rechazosSearchController = TextEditingController();
+
+  // Lista de rechazos de oqc_rejections
+  List<Map<String, dynamic>> _oqcRejections = [];
+  bool _loadingRejections = false;
 
   @override
   void initState() {
@@ -76,15 +81,40 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     );
   }
 
-  void _loadRechazosRecords() {
-    final provider = context.read<AppProvider>();
-    provider.loadExitRecords(
-      status: _rechazosStatusFilter == 'all' ? null : _rechazosStatusFilter,
-      partNumber: _rechazosSearchController.text.isEmpty
-          ? null
-          : _rechazosSearchController.text,
-      qcPassed: false, // Solo registros rechazados
-    );
+  void _loadRechazosRecords() async {
+    setState(() {
+      _loadingRejections = true;
+    });
+
+    try {
+      final status =
+          _rechazosStatusFilter == 'all' ? null : _rechazosStatusFilter;
+      final rejections = await ApiService.getOqcRejections(status: status);
+
+      // Filtrar por búsqueda si hay texto
+      final searchText = _rechazosSearchController.text.toLowerCase();
+      if (searchText.isNotEmpty) {
+        setState(() {
+          _oqcRejections = rejections.where((r) {
+            final partNumber =
+                (r['part_number'] ?? '').toString().toLowerCase();
+            final folio = (r['rejection_folio'] ?? '').toString().toLowerCase();
+            return partNumber.contains(searchText) ||
+                folio.contains(searchText);
+          }).toList();
+        });
+      } else {
+        setState(() {
+          _oqcRejections = rejections;
+        });
+      }
+    } catch (e) {
+      print('Error loading rejections: $e');
+    } finally {
+      setState(() {
+        _loadingRejections = false;
+      });
+    }
   }
 
   void _clearLiberacionFilters() {
@@ -104,6 +134,198 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
       _rechazosSearchController.clear();
     });
     _loadRechazosRecords();
+  }
+
+  Future<void> _exportRejectionsToExcel() async {
+    if (_oqcRejections.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay registros para exportar')),
+      );
+      return;
+    }
+
+    try {
+      final StringBuffer csv = StringBuffer();
+      csv.writeln(
+          'Folio Rechazo,No. Parte,Cant. Esperada,Cant. Real,Operador,Fecha,Estado,Cajas,Observaciones');
+
+      for (final r in _oqcRejections) {
+        final fecha = r['rejection_date'] != null
+            ? DateFormat('dd/MM/yyyy HH:mm')
+                .format(DateTime.parse(r['rejection_date'].toString()))
+            : '';
+        final estado = r['status'] == 'pending'
+            ? 'En Contención'
+            : r['status'] == 'released'
+                ? 'Liberado'
+                : r['status'];
+        final observaciones = (r['rejection_reason'] ?? '')
+            .toString()
+            .replaceAll(',', ';')
+            .replaceAll('\n', ' ');
+        final cajas = (r['box_codes'] ?? '-').toString().split(',').length;
+
+        csv.writeln('${r['rejection_folio'] ?? ""},'
+            '${r['part_number'] ?? ""},'
+            '${r['expected_quantity'] ?? 0},'
+            '${r['actual_quantity'] ?? 0},'
+            '${r['operator_name'] ?? ""},'
+            '$fecha,'
+            '$estado,'
+            '$cajas,'
+            '$observaciones');
+      }
+
+      final directory = await getApplicationDocumentsDirectory();
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final fileName = 'rechazos_$timestamp.csv';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(csv.toString());
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Archivo exportado: ${file.path}'),
+            action: SnackBarAction(
+              label: 'Abrir carpeta',
+              onPressed: () {
+                Process.run('explorer', [directory.path]);
+              },
+            ),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al exportar: $e')),
+        );
+      }
+    }
+  }
+
+  void _showRejectionDetails(Map<String, dynamic> rejection) {
+    final rejectionDate = rejection['rejection_date'] != null
+        ? DateTime.tryParse(rejection['rejection_date'].toString())
+        : null;
+    final boxCodes = (rejection['box_codes'] ?? '').toString().split(',');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.blue),
+            const SizedBox(width: 8),
+            Text('Rechazo ${rejection['rejection_folio']}'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow(
+                  'No. Parte:', rejection['part_number']?.toString() ?? '-'),
+              _buildDetailRow(
+                  'Cant. Esperada:', '${rejection['expected_quantity'] ?? 0}'),
+              _buildDetailRow(
+                  'Cant. Real:', '${rejection['actual_quantity'] ?? 0}'),
+              _buildDetailRow(
+                  'Operador:', rejection['operator_name']?.toString() ?? '-'),
+              _buildDetailRow(
+                  'Fecha:',
+                  rejectionDate != null
+                      ? DateFormat('dd/MM/yyyy HH:mm').format(rejectionDate)
+                      : '-'),
+              _buildDetailRow(
+                  'Estado:',
+                  rejection['status'] == 'pending'
+                      ? 'En Contención'
+                      : 'Liberado'),
+              const SizedBox(height: 16),
+              const Text('Observaciones:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(rejection['rejection_reason']?.toString() ??
+                  'Sin observaciones'),
+              const SizedBox(height: 16),
+              const Text('Cajas:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              ...boxCodes.map((code) => Text('• $code')),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  void _showReleaseConfirmation(Map<String, dynamic> rejection) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Liberar Rechazo'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                '¿Confirma liberar el rechazo ${rejection['rejection_folio']}?'),
+            const SizedBox(height: 8),
+            Text('No. Parte: ${rejection['part_number']}'),
+            Text('Cantidad: ${rejection['actual_quantity']} piezas'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text(
+                        'Función de liberación pendiente de implementar en el backend')),
+              );
+              _loadRechazosRecords();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Liberar'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _selectLiberacionDateRange() async {
@@ -147,7 +369,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
       // Encabezados
       csv.writeln(
-          'Folio,Número de Parte,Modelo,Cantidad,Código Caja,Operador,Fecha,${type == 'rechazos' ? 'Estado,' : ''}Observaciones');
+          'Folio,Número de Parte,Modelo,Cantidad,Caja ESD,Lote,Operador,Fecha,${type == 'rechazos' ? 'Estado,' : ''}Observaciones');
 
       // Datos
       for (final record in records) {
@@ -168,6 +390,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
             '${record.model ?? ""},'
             '${record.quantity},'
             '${record.boxCode ?? ""},'
+            '${record.lotNumber ?? ""},'
             '${record.operatorName ?? ""},'
             '$fecha,'
             '${type == 'rechazos' ? '$estado,' : ''}'
@@ -488,10 +711,6 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
   }
 
   Widget _buildRechazosTab(AppProvider provider) {
-    // Filtrar solo registros con qc_passed = false
-    final rechazosRecords =
-        provider.exitRecords.where((r) => !r.qcPassed).toList();
-
     return Column(
       children: [
         // Filtros de Rechazos
@@ -529,7 +748,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                 width: 200,
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
-                  initialValue: _rechazosStatusFilter,
+                  value: _rechazosStatusFilter,
                   decoration: const InputDecoration(
                     labelText: 'Estado',
                     contentPadding: EdgeInsets.symmetric(horizontal: 16),
@@ -568,10 +787,10 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                 ),
               const SizedBox(width: 8),
 
-              // Exportar a Excel
+              // Exportar a CSV
               OutlinedButton.icon(
-                onPressed: rechazosRecords.isNotEmpty
-                    ? () => _exportToExcel(rechazosRecords, 'Rechazos')
+                onPressed: _oqcRejections.isNotEmpty
+                    ? () => _exportRejectionsToExcel()
                     : null,
                 icon: const Icon(Icons.download),
                 label: const Text('Exportar'),
@@ -587,11 +806,165 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
         // Tabla de rechazos
         Expanded(
-          child: rechazosRecords.isEmpty
-              ? _buildEmptyState('No hay registros de rechazos')
-              : _buildDataTable(rechazosRecords, showStatusColumn: true),
+          child: _loadingRejections
+              ? const Center(child: CircularProgressIndicator())
+              : _oqcRejections.isEmpty
+                  ? _buildEmptyState('No hay registros de rechazos')
+                  : _buildRejectionsTable(),
         ),
       ],
+    );
+  }
+
+  Widget _buildRejectionsTable() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+        child: DataTable2(
+          columnSpacing: 12,
+          horizontalMargin: 12,
+          minWidth: 1200,
+          border: TableBorder.all(
+            color: Colors.grey.shade200,
+            width: 0.5,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          headingRowColor: WidgetStateProperty.all(
+            const Color(0xFF1565C0),
+          ),
+          headingTextStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+          columns: const [
+            DataColumn2(
+              label: Text('Folio Rechazo'),
+              size: ColumnSize.M,
+            ),
+            DataColumn2(
+              label: Text('No. Parte'),
+              size: ColumnSize.L,
+            ),
+            DataColumn2(
+              label: Center(child: Text('Cant. Esp.')),
+              size: ColumnSize.S,
+              numeric: true,
+            ),
+            DataColumn2(
+              label: Center(child: Text('Cant. Real')),
+              size: ColumnSize.S,
+              numeric: true,
+            ),
+            DataColumn2(
+              label: Text('Operador'),
+              size: ColumnSize.M,
+            ),
+            DataColumn2(
+              label: Center(child: Text('Fecha')),
+              size: ColumnSize.M,
+            ),
+            DataColumn2(
+              label: Text('Estado'),
+              size: ColumnSize.S,
+            ),
+            DataColumn2(
+              label: Center(child: Text('Cajas')),
+              size: ColumnSize.S,
+              numeric: true,
+            ),
+            DataColumn2(
+              label: Text('Acciones'),
+              size: ColumnSize.S,
+              fixedWidth: 100,
+            ),
+          ],
+          rows: _oqcRejections.map((rejection) {
+            final rejectionDate = rejection['rejection_date'] != null
+                ? DateTime.tryParse(rejection['rejection_date'].toString())
+                : null;
+
+            return DataRow2(
+              cells: [
+                DataCell(
+                  Text(
+                    rejection['rejection_folio']?.toString() ?? '-',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Text(rejection['part_number']?.toString() ?? '-'),
+                ),
+                DataCell(
+                  Center(
+                    child: Text(NumberFormat('#,###')
+                        .format(rejection['expected_quantity'] ?? 0)),
+                  ),
+                ),
+                DataCell(
+                  Center(
+                    child: Text(NumberFormat('#,###')
+                        .format(rejection['actual_quantity'] ?? 0)),
+                  ),
+                ),
+                DataCell(Text(rejection['operator_name']?.toString() ?? '-')),
+                DataCell(
+                  Center(
+                    child: Text(
+                      rejectionDate != null
+                          ? DateFormat('dd/MM/yy HH:mm').format(rejectionDate)
+                          : '-',
+                    ),
+                  ),
+                ),
+                DataCell(
+                  _StatusBadge(
+                      status: rejection['status']?.toString() ?? 'pending'),
+                ),
+                DataCell(
+                  Center(
+                    child: Text((rejection['box_codes'] ?? '-')
+                        .toString()
+                        .split(',')
+                        .length
+                        .toString()),
+                  ),
+                ),
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.visibility, size: 18),
+                        onPressed: () => _showRejectionDetails(rejection),
+                        tooltip: 'Ver detalles',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 4),
+                      if (rejection['status'] == 'pending')
+                        IconButton(
+                          icon: const Icon(Icons.check_circle_outline,
+                              size: 18, color: Colors.green),
+                          onPressed: () => _showReleaseConfirmation(rejection),
+                          tooltip: 'Liberar',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 
@@ -649,7 +1022,11 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
               numeric: true,
             ),
             const DataColumn2(
-              label: Text('Código Caja'),
+              label: Text('Caja ESD'),
+              size: ColumnSize.S,
+            ),
+            const DataColumn2(
+              label: Text('Lote'),
               size: ColumnSize.M,
             ),
             const DataColumn2(
@@ -705,6 +1082,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                   ),
                 ),
                 DataCell(Text(record.boxCode ?? '-')),
+                DataCell(Text(record.lotNumber ?? '-')),
                 DataCell(Text(record.operatorName ?? '-')),
                 DataCell(
                   Text(
@@ -766,7 +1144,7 @@ class _StatusBadge extends StatelessWidget {
     switch (status) {
       case 'pending':
         color = AppTheme.warningColor;
-        text = 'En Contención';
+        text = 'Contención';
         icon = Icons.warning_amber;
         break;
       case 'released':
@@ -777,40 +1155,35 @@ class _StatusBadge extends StatelessWidget {
       case 'shipped':
         color = AppTheme.accentColor;
         text = 'Enviado';
+        icon = Icons.local_shipping_outlined;
         break;
       case 'cancelled':
         color = AppTheme.errorColor;
         text = 'Cancelado';
+        icon = Icons.cancel_outlined;
         break;
       default:
         color = Colors.grey;
         text = status;
+        icon = null;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            text,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 4),
         ],
-      ),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

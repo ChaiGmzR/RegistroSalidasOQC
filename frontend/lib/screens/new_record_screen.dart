@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/app_provider.dart';
-import '../models/exit_record.dart';
+
 import '../models/part_number.dart';
 import '../models/operator.dart';
 import '../services/api_service.dart';
@@ -95,13 +95,16 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
   /// Formato 2: I20260106-0011-1142;MAIN;EBR80757422;1; -> EBR80757422 (tercer elemento)
   String? _extractPartNumberFromQR(String qrCode) {
     final trimmed = qrCode.trim();
+    final upperTrimmed = trimmed.toUpperCase();
 
-    // Formato 2: Contiene punto y coma (;)
-    if (trimmed.contains(';')) {
-      final parts = trimmed.split(';');
+    // Formato 2: Contiene punto y coma (;) o ñ (usado por algunos scanners)
+    if (trimmed.contains(';') || trimmed.contains('ñ')) {
+      // Reemplazar ñ por ; para normalizar
+      final normalized = trimmed.replaceAll('ñ', ';');
+      final parts = normalized.split(';');
       if (parts.length >= 3) {
         // El número de parte está en la posición 2 (índice 2)
-        final partNumber = parts[2].trim();
+        final partNumber = parts[2].trim().toUpperCase();
         if (partNumber.isNotEmpty && partNumber.startsWith('EBR')) {
           return partNumber;
         }
@@ -109,14 +112,14 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
       return null;
     }
 
-    // Formato 1: Código largo que empieza con EBR
-    if (trimmed.startsWith('EBR') && trimmed.length >= 11) {
-      return trimmed.substring(0, 11);
+    // Formato 1: Código largo que empieza con EBR (case-insensitive)
+    if (upperTrimmed.startsWith('EBR') && trimmed.length >= 11) {
+      return upperTrimmed.substring(0, 11);
     }
 
     // Si ya es un número de parte corto (11 chars)
-    if (trimmed.length == 11 && trimmed.startsWith('EBR')) {
-      return trimmed;
+    if (trimmed.length == 11 && upperTrimmed.startsWith('EBR')) {
+      return upperTrimmed;
     }
 
     // Devolver como está si no coincide con ningún formato
@@ -239,7 +242,14 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     } finally {
       setState(() => _isScanning = false);
       _scanController.clear();
-      _scanFocusNode.requestFocus();
+
+      // Regresar focus al campo de escaneo después de un pequeño delay
+      // para asegurar que el setState se complete primero
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _scanFocusNode.requestFocus();
+        }
+      });
     }
   }
 
@@ -353,9 +363,6 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
           .map((box) => '${box.boxCode}: ${box.quantity} pzas')
           .join(', ');
 
-      // Determinar destino según estado de QC
-      final destination = _qcPassed ? 'Almacen' : 'Contención';
-
       // Identificar cajas que son rechazos de almacén
       final almacenRejections = _scannedBoxes
           .where((box) => box.wasInAlmacen)
@@ -370,57 +377,68 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
             '\n[RECHAZO DE ALMACÉN: ${almacenRejections.join(", ")}]';
       }
 
-      // Usar el nuevo método que crea un registro por cada caja
-      final result = await ApiService.createExitRecordWithBoxes(
-        partNumberId: _selectedPartNumber!.id!,
-        esdBoxId: 1, // Default box
-        operatorId: _selectedOperator!.id!,
-        inspectionDate: _inspectionDate,
-        destination: destination,
-        observations: observations,
-        qcPassed: _qcPassed,
-        boxes: boxes,
-      );
+      // Variables para el resultado
+      String? folio;
+      String? rejectionFolio;
+      int recordsCreated = 0;
 
-      if (result['success'] == true && mounted) {
-        final folio = result['folio'] as String;
-        final recordsCreated = result['recordsCreated'] as int;
+      if (_qcPassed) {
+        // APROBACIÓN: Crear registros en exit_records
+        final result = await ApiService.createExitRecordWithBoxes(
+          partNumberId: _selectedPartNumber!.id!,
+          esdBoxId: 1, // Default box
+          operatorId: _selectedOperator!.id!,
+          inspectionDate: _inspectionDate,
+          destination: 'Almacen',
+          observations: observations,
+          qcPassed: true,
+          boxes: boxes,
+        );
 
-        // Si es rechazo, crear registro en tabla de rechazos OQC
-        String? rejectionFolio;
-        if (!_qcPassed) {
-          try {
-            // Incluir info de rechazos de almacén en el motivo
-            String rejectionReason = _observationsController.text;
-            if (almacenRejections.isNotEmpty) {
-              rejectionReason +=
-                  ' [RECHAZO DE ALMACÉN - Material debe volver a escanearse]';
-            }
-
-            final rejectionResult = await ApiService.createOqcRejection(
-              exitRecordId: 0, // Se asociará por folio
-              partNumberId: _selectedPartNumber!.id!,
-              operatorId: _selectedOperator!.id!,
-              expectedQuantity: expectedQty,
-              actualQuantity: _totalQuantity,
-              rejectionReason: rejectionReason,
-              boxCodes: boxDetails,
-            );
-            if (rejectionResult['success'] == true) {
-              rejectionFolio = rejectionResult['data']['rejection_folio'];
-            }
-          } catch (e) {
-            // Log error pero no bloquear el flujo
-            debugPrint('Error creando rechazo OQC: $e');
-          }
+        if (result['success'] == true) {
+          folio = result['folio'] as String;
+          recordsCreated = result['recordsCreated'] as int;
+        } else {
+          throw Exception('Error al crear registro de salida');
+        }
+      } else {
+        // RECHAZO: Crear registro SOLO en oqc_rejections
+        String rejectionReason = _observationsController.text;
+        if (almacenRejections.isNotEmpty) {
+          rejectionReason +=
+              ' [RECHAZO DE ALMACÉN - Material debe volver a escanearse]';
         }
 
+        final rejectionResult = await ApiService.createOqcRejection(
+          exitRecordId: 0, // No asociado a exit_record
+          partNumberId: _selectedPartNumber!.id!,
+          operatorId: _selectedOperator!.id!,
+          expectedQuantity: expectedQty,
+          actualQuantity: _totalQuantity,
+          rejectionReason: rejectionReason,
+          boxCodes: boxDetails,
+        );
+
+        if (rejectionResult['success'] == true) {
+          rejectionFolio = rejectionResult['data']['rejection_folio'];
+          folio =
+              rejectionFolio; // Usar el folio de rechazo como identificador principal
+          recordsCreated = _scannedBoxes.length;
+        } else {
+          throw Exception('Error al crear rechazo OQC');
+        }
+      }
+
+      if (mounted && folio != null) {
         // Capturar datos para impresión ANTES de resetear el formulario
         final printData = {
           'scannedBoxes': _scannedBoxes
               .map((b) => {
                     'boxCode': b.boxCode,
                     'lqcDate': b.lastScan ?? '',
+                    'quantity': b.quantity.toString(),
+                    'partNumber':
+                        b.partNumber ?? _selectedPartNumber?.partNumber ?? '',
                   })
               .toList(),
           'partNumber':
@@ -611,183 +629,6 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     );
   }
 
-  void _showSuccessDialog(ExitRecord record,
-      {String? rejectionFolio, Map<String, dynamic>? printData}) {
-    final isRejected = !record.qcPassed;
-
-    // Para liberaciones, cerrar automáticamente después de 3 segundos
-    if (!isRejected) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          // Auto-cerrar después de 3 segundos
-          Future.delayed(const Duration(seconds: 3), () {
-            if (Navigator.of(dialogContext).canPop()) {
-              Navigator.of(dialogContext).pop();
-            }
-          });
-
-          return AlertDialog(
-            icon: const Icon(
-              Icons.check_circle,
-              color: AppTheme.successColor,
-              size: 64,
-            ),
-            title: const Text('Registro Creado'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Folio: ${record.folio}',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text('Cantidad: ${record.quantity} piezas'),
-                Text(
-                    'Número de Parte: ${printData?['partNumber'] ?? record.partNumber ?? ''}'),
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.successColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Destino: ${record.destination}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.successColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Este mensaje se cerrará automáticamente...',
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-      return;
-    }
-
-    // Para rechazos, mostrar diálogo con botón de imprimir
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(
-          Icons.warning_amber_rounded,
-          color: AppTheme.warningColor,
-          size: 64,
-        ),
-        title: const Text('Material Rechazado'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Folio: ${record.folio}',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryColor,
-              ),
-            ),
-            if (rejectionFolio != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Rechazo: $rejectionFolio',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.errorColor,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Text('Cantidad: ${record.quantity} piezas'),
-            Text(
-                'Número de Parte: ${printData?['partNumber'] ?? record.partNumber ?? ''}'),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppTheme.errorColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                'Destino: ${record.destination}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.errorColor,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'El material será enviado al área de contención para revisión.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              if (printData != null) {
-                _printRejectionTicketWithData(
-                    record, rejectionFolio, printData);
-              }
-            },
-            icon: const Icon(Icons.print),
-            label: const Text('Imprimir'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _printRejectionTicketWithData(
-    ExitRecord record,
-    String? rejectionFolio,
-    Map<String, dynamic> printData,
-  ) async {
-    if (rejectionFolio == null) return;
-
-    // Convertir a List<Map<String, String>> para compatibilidad con PrintService
-    final boxesData = (printData['scannedBoxes'] as List)
-        .map((box) => {
-              'boxCode': (box['boxCode'] ?? '').toString(),
-              'lqcDate': (box['lqcDate'] ?? '').toString(),
-            })
-        .toList();
-
-    await PrintService.printRejectionTicket(
-      rejectionFolio: rejectionFolio,
-      exitFolio: record.folio ?? '',
-      partNumber: printData['partNumber'] ?? '',
-      partDescription: printData['partDescription'] ?? '',
-      quantity: record.quantity,
-      operatorName: printData['operatorName'] ?? '',
-      operatorId: printData['operatorId'] ?? '',
-      observations: printData['observations'] ?? '',
-      boxesData: boxesData,
-      rejectionDate: DateTime.now(),
-    );
-  }
-
   /// Imprimir ticket de rechazo usando folio directamente (para nuevo método de creación)
   Future<void> _printRejectionTicketWithFolio(
     String folio,
@@ -801,8 +642,12 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
         .map((box) => {
               'boxCode': (box['boxCode'] ?? '').toString(),
               'lqcDate': (box['lqcDate'] ?? '').toString(),
+              'quantity': (box['quantity'] ?? '').toString(),
+              'partNumber': (box['partNumber'] ?? printData['partNumber'] ?? '')
+                  .toString(),
             })
-        .toList();
+        .toList()
+        .cast<Map<String, String>>();
 
     await PrintService.printRejectionTicket(
       rejectionFolio: rejectionFolio,
@@ -1112,46 +957,70 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                           : null,
                                     ),
                                     onChanged: (value) {
-                                      // Extraer número de parte del QR
-                                      final extractedPN =
-                                          _extractPartNumberFromQR(value);
-                                      if (extractedPN != null &&
-                                          extractedPN != value.trim()) {
-                                        // Si se extrajo un PN diferente, actualizar el campo
-                                        _partNumberController.text =
-                                            extractedPN;
-                                        _partNumberController.selection =
-                                            TextSelection.fromPosition(
-                                          TextPosition(
-                                              offset: extractedPN.length),
-                                        );
-                                      }
-
-                                      // Guardar el PN extraído (sin validar en BD)
-                                      final searchPN =
-                                          extractedPN ?? value.trim();
+                                      // Solo limpiar el estado mientras se escribe
                                       setState(() {
-                                        _extractedPartNumber =
-                                            searchPN.isNotEmpty
-                                                ? searchPN
-                                                : null;
-                                        // Buscar en BD solo para obtener el modelo (no es obligatorio que exista)
-                                        // Comparación case-insensitive para evitar problemas con configuración del scanner
-                                        final pn =
-                                            provider.partNumbers.firstWhere(
-                                          (p) =>
-                                              p.partNumber.toLowerCase() ==
-                                              searchPN.toLowerCase(),
-                                          orElse: () => PartNumber(
-                                              id: null,
-                                              partNumber: searchPN,
-                                              standardPack: 0),
-                                        );
-                                        _selectedPartNumber = pn;
+                                        _extractedPartNumber = null;
+                                        _selectedPartNumber = null;
                                       });
                                     },
-                                    onFieldSubmitted: (_) {
-                                      // Al presionar Enter, ir al campo Cantidad
+                                    onFieldSubmitted: (value) {
+                                      // Extraer número de parte del QR escaneado
+                                      final extractedPN =
+                                          _extractPartNumberFromQR(value);
+
+                                      if (extractedPN != null) {
+                                        // Actualizar el campo con el PN extraído (en mayúsculas)
+                                        final upperPN =
+                                            extractedPN.toUpperCase();
+                                        _partNumberController.text = upperPN;
+
+                                        // Guardar el PN extraído
+                                        setState(() {
+                                          _extractedPartNumber = upperPN;
+
+                                          // Buscar en BD solo para obtener el modelo (no es obligatorio que exista)
+                                          // Comparación case-insensitive
+                                          final pn =
+                                              provider.partNumbers.firstWhere(
+                                            (p) =>
+                                                p.partNumber.toLowerCase() ==
+                                                upperPN.toLowerCase(),
+                                            orElse: () => PartNumber(
+                                              id: null,
+                                              partNumber: upperPN,
+                                              standardPack: 0,
+                                            ),
+                                          );
+                                          _selectedPartNumber = pn;
+                                        });
+                                      } else {
+                                        // Si no se pudo extraer, usar el valor como está
+                                        final upperValue =
+                                            value.trim().toUpperCase();
+                                        _partNumberController.text = upperValue;
+
+                                        setState(() {
+                                          _extractedPartNumber =
+                                              upperValue.isNotEmpty
+                                                  ? upperValue
+                                                  : null;
+
+                                          final pn =
+                                              provider.partNumbers.firstWhere(
+                                            (p) =>
+                                                p.partNumber.toLowerCase() ==
+                                                upperValue.toLowerCase(),
+                                            orElse: () => PartNumber(
+                                              id: null,
+                                              partNumber: upperValue,
+                                              standardPack: 0,
+                                            ),
+                                          );
+                                          _selectedPartNumber = pn;
+                                        });
+                                      }
+
+                                      // Ir al campo Cantidad
                                       _quantityFocusNode.requestFocus();
                                     },
                                     textInputAction: TextInputAction.next,

@@ -6,21 +6,21 @@ class OqcRejectionModel {
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
     const prefix = `REJ-${dateStr}`;
-    
+
     const [rows] = await pool.query(
       `SELECT rejection_folio FROM oqc_rejections 
        WHERE rejection_folio LIKE ? 
        ORDER BY rejection_folio DESC LIMIT 1`,
       [`${prefix}%`]
     );
-    
+
     let sequence = 1;
     if (rows.length > 0) {
       const lastFolio = rows[0].rejection_folio;
       const lastSequence = parseInt(lastFolio.split('-')[2], 10);
       sequence = lastSequence + 1;
     }
-    
+
     return `${prefix}-${sequence.toString().padStart(3, '0')}`;
   }
 
@@ -116,15 +116,25 @@ class OqcRejectionModel {
 
     const quantity_difference = actual_quantity - expected_quantity;
 
+    // Convertir 0 a null para evitar errores de FK
+    const exitRecordIdValue = exit_record_id && exit_record_id !== 0 ? exit_record_id : null;
+
+    // Obtener el employee_id del operador
+    const [operatorRows] = await pool.query(
+      'SELECT employee_id FROM operators WHERE id = ?',
+      [operator_id]
+    );
+    const employeeId = operatorRows.length > 0 ? operatorRows[0].employee_id : null;
+
     const [result] = await pool.query(
       `INSERT INTO oqc_rejections 
-       (rejection_folio, exit_record_id, part_number_id, operator_id, 
+       (rejection_folio, exit_record_id, part_number_id, operator_id, employee_id,
         expected_quantity, actual_quantity, quantity_difference, 
         rejection_reason, box_codes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [folio, exit_record_id, part_number_id, operator_id,
-       expected_quantity, actual_quantity, quantity_difference,
-       rejection_reason, box_codes]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [folio, exitRecordIdValue, part_number_id, operator_id, employeeId,
+        expected_quantity, actual_quantity, quantity_difference,
+        rejection_reason, box_codes]
     );
 
     return { id: result.insertId, folio };

@@ -172,7 +172,7 @@ const initDatabase = async () => {
     await connection.query(`
       CREATE TABLE IF NOT EXISTS oqc_rejections (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        exit_record_id INT NOT NULL,
+        exit_record_id INT NULL,
         rejection_folio VARCHAR(20) NOT NULL UNIQUE,
         part_number_id INT NOT NULL,
         operator_id INT NOT NULL,
@@ -189,7 +189,6 @@ const initDatabase = async () => {
         return_folio VARCHAR(20),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (exit_record_id) REFERENCES exit_records(id),
         FOREIGN KEY (part_number_id) REFERENCES part_numbers(id),
         FOREIGN KEY (operator_id) REFERENCES operators(id),
         FOREIGN KEY (corrected_by) REFERENCES operators(id)
@@ -211,6 +210,81 @@ const initDatabase = async () => {
       INSERT IGNORE INTO operators (employee_id, name, pin, is_supervisor, department) VALUES
       ('OQC001', 'Supervisor OQC', '1234', TRUE, 'OQC')
     `);
+
+    // Migración: Permitir NULL en exit_record_id para rechazos independientes
+    try {
+      await connection.query(`
+        ALTER TABLE oqc_rejections MODIFY COLUMN exit_record_id INT NULL
+      `);
+      console.log('✅ Migración aplicada: exit_record_id ahora permite NULL');
+    } catch (migrationError) {
+      // Ignorar si la columna ya está modificada o no existe
+      if (!migrationError.message.includes('Unknown column')) {
+        console.log('ℹ️ Columna exit_record_id ya permite NULL o tabla no existe aún');
+      }
+    }
+
+    // Migración: Agregar columna employee_id a exit_records
+    try {
+      const [exitRecordCols] = await connection.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'exit_records' 
+          AND COLUMN_NAME = 'employee_id'
+      `);
+
+      if (exitRecordCols.length === 0) {
+        await connection.query(`
+          ALTER TABLE exit_records ADD COLUMN employee_id VARCHAR(20) AFTER operator_id
+        `);
+        console.log('✅ Columna employee_id agregada a exit_records');
+
+        // Actualizar registros existentes con el employee_id del operador
+        await connection.query(`
+          UPDATE exit_records er
+          JOIN operators op ON er.operator_id = op.id
+          SET er.employee_id = op.employee_id
+          WHERE er.employee_id IS NULL
+        `);
+        console.log('✅ Registros existentes actualizados con employee_id');
+      } else {
+        console.log('ℹ️ Columna employee_id ya existe en exit_records');
+      }
+    } catch (err) {
+      console.log('⚠️ Error en migración employee_id para exit_records:', err.message);
+    }
+
+    // Migración: Agregar columna employee_id a oqc_rejections
+    try {
+      const [rejectionCols] = await connection.query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'oqc_rejections' 
+          AND COLUMN_NAME = 'employee_id'
+      `);
+
+      if (rejectionCols.length === 0) {
+        await connection.query(`
+          ALTER TABLE oqc_rejections ADD COLUMN employee_id VARCHAR(20) AFTER operator_id
+        `);
+        console.log('✅ Columna employee_id agregada a oqc_rejections');
+
+        // Actualizar registros existentes con el employee_id del operador
+        await connection.query(`
+          UPDATE oqc_rejections r
+          JOIN operators op ON r.operator_id = op.id
+          SET r.employee_id = op.employee_id
+          WHERE r.employee_id IS NULL
+        `);
+        console.log('✅ Registros de rechazos actualizados con employee_id');
+      } else {
+        console.log('ℹ️ Columna employee_id ya existe en oqc_rejections');
+      }
+    } catch (err) {
+      console.log('⚠️ Error en migración employee_id para oqc_rejections:', err.message);
+    }
 
     connection.release();
     console.log('✅ Base de datos inicializada correctamente');

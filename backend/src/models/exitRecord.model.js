@@ -6,16 +6,17 @@ class ExitRecordModel {
    * Retorna información sobre el estado del boxCode si existe
    */
   static async validateBoxCode(boxCode) {
-    // Buscar en exit_records por la columna box_code
+    // Buscar en exit_records donde el boxCode aparezca en observations
+    // El formato es: "Cajas: BOX1: 10 pzas, BOX2: 10 pzas" o similar
     const [rows] = await pool.query(
-      `SELECT er.id, er.folio, er.box_code, er.destination, er.status, er.qc_passed, 
+      `SELECT er.id, er.folio, er.destination, er.status, er.qc_passed, 
               er.exit_date, er.observations
        FROM exit_records er
-       WHERE er.box_code = ?
+       WHERE er.observations LIKE ?
          AND er.status != 'cancelled'
        ORDER BY er.exit_date DESC
        LIMIT 1`,
-      [boxCode]
+      [`%${boxCode}%`]
     );
 
     if (rows.length === 0) {
@@ -26,11 +27,11 @@ class ExitRecordModel {
     return {
       exists: true,
       folio: record.folio,
-      boxCode: record.box_code,
       destination: record.destination,
       status: record.status,
       qcPassed: record.qc_passed === 1,
       exitDate: record.exit_date,
+      // Determinar tipo de registro
       type: record.qc_passed === 1 ? 'almacen' : 'contencion'
     };
   }
@@ -53,28 +54,27 @@ class ExitRecordModel {
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     const prefix = `OQC${year}${month}${day}`;
-
+    
     const [rows] = await pool.query(
       `SELECT folio FROM exit_records WHERE folio LIKE ? ORDER BY folio DESC LIMIT 1`,
       [`${prefix}%`]
     );
-
+    
     let sequence = 1;
     if (rows.length > 0) {
       const lastFolio = rows[0].folio;
       const lastSequence = parseInt(lastFolio.slice(-4));
       sequence = lastSequence + 1;
     }
-
+    
     return `${prefix}${sequence.toString().padStart(4, '0')}`;
   }
 
   static async getAll(filters = {}) {
     let query = `
       SELECT er.*, 
-             er.box_code as scanned_box_code,
              pn.part_number, pn.description as part_description, pn.model,
-             eb.box_code as esd_box_type, eb.capacity,
+             eb.box_code, eb.capacity,
              op.employee_id, op.name as operator_name
       FROM exit_records er
       JOIN part_numbers pn ON er.part_number_id = pn.id
@@ -154,66 +154,60 @@ class ExitRecordModel {
     return rows[0];
   }
 
-  /**
-   * Crear registros de salida - uno por cada caja escaneada
-   * @param {Object} data - Datos base del registro
-   * @param {Array} data.boxes - Array de cajas [{boxCode, quantity, partNumber}]
-   */
   static async create(data) {
     const folio = await this.generateFolio();
     const {
       part_number_id,
       esd_box_id,
       operator_id,
+      quantity,
       inspection_date,
       exit_date,
       destination,
       observations,
-      qc_passed,
-      boxes // Array de cajas: [{boxCode, quantity}]
+      qc_passed
     } = data;
 
-    const createdRecords = [];
-    const exitDateTime = exit_date || new Date();
-    const dest = destination || 'Almacen';
-    const qcPassedValue = qc_passed !== false;
+    const [result] = await pool.query(
+      `INSERT INTO exit_records 
+       (folio, part_number_id, esd_box_id, operator_id, quantity,
+        inspection_date, exit_date, destination, observations, qc_passed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [folio, part_number_id, esd_box_id, operator_id, quantity,
+       inspection_date, exit_date || new Date(), destination || 'Almacen', 
+       observations, qc_passed !== false]
+    );
 
-    // Si hay un array de cajas, crear un registro por cada una
-    if (boxes && Array.isArray(boxes) && boxes.length > 0) {
-      for (const box of boxes) {
-        const [result] = await pool.query(
-          `INSERT INTO exit_records 
-           (folio, box_code, part_number_id, esd_box_id, operator_id, quantity, 
-            inspection_date, exit_date, destination, observations, qc_passed)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [folio, box.boxCode, part_number_id, esd_box_id, operator_id, box.quantity,
-            inspection_date, exitDateTime, dest, observations, qcPassedValue]
-        );
-        createdRecords.push({ id: result.insertId, boxCode: box.boxCode, quantity: box.quantity });
-      }
-    } else {
-      // Compatibilidad hacia atrás: crear un solo registro sin box_code
-      const quantity = data.quantity || 0;
-      const [result] = await pool.query(
-        `INSERT INTO exit_records 
-         (folio, box_code, part_number_id, esd_box_id, operator_id, quantity, 
-          inspection_date, exit_date, destination, observations, qc_passed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [folio, null, part_number_id, esd_box_id, operator_id, quantity,
-          inspection_date, exitDateTime, dest, observations, qcPassedValue]
-      );
-      createdRecords.push({ id: result.insertId });
-    }
+    return { id: result.insertId, folio };
+  }
 
-    // Retornar el folio y el total de registros creados
-    const totalQuantity = createdRecords.reduce((sum, r) => sum + (r.quantity || 0), 0);
-    return {
-      id: createdRecords[0]?.id,
-      folio,
-      recordsCreated: createdRecords.length,
-      totalQuantity,
-      records: createdRecords
-    };
+  /**
+   * Crear un registro con un folio ya generado (para batch)
+   */
+  static async createWithFolio(folio, data) {
+    const {
+      part_number_id,
+      esd_box_id,
+      operator_id,
+      quantity,
+      inspection_date,
+      exit_date,
+      destination,
+      observations,
+      qc_passed
+    } = data;
+
+    const [result] = await pool.query(
+      `INSERT INTO exit_records 
+       (folio, part_number_id, esd_box_id, operator_id, quantity,
+        inspection_date, exit_date, destination, observations, qc_passed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [folio, part_number_id, esd_box_id, operator_id, quantity,
+       inspection_date, exit_date || new Date(), destination || 'Almacen', 
+       observations, qc_passed !== false]
+    );
+
+    return { id: result.insertId, folio };
   }
 
   static async update(id, data) {
@@ -235,7 +229,8 @@ class ExitRecordModel {
        inspection_date = ?, destination = ?, status = ?, observations = ?, qc_passed = ?
        WHERE id = ?`,
       [part_number_id, esd_box_id, operator_id, quantity,
-        inspection_date, destination, status, observations, qc_passed, id]
+       inspection_date, destination, status,
+       observations, qc_passed, id]
     );
 
     return true;

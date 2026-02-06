@@ -124,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     // Header
                     Container(
-                      height: 80,
+                      height: 56, // Altura del AppBar (kToolbarHeight)
                       padding: EdgeInsets.symmetric(
                           horizontal: _isExpanded ? 16 : 15),
                       child: Row(
@@ -154,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                   Text(
-                                    'Registro Salidas',
+                                    'Registro de Salidas OQC',
                                     style: TextStyle(
                                       color: AppTheme.textGray,
                                       fontSize: 12,

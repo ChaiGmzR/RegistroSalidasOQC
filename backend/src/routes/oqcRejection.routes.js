@@ -33,9 +33,9 @@ router.get('/stats', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Se requieren startDate y endDate' 
+      return res.status(400).json({
+        success: false,
+        error: 'Se requieren startDate y endDate'
       });
     }
     const stats = await OqcRejectionModel.getStatsByDateRange(startDate, endDate);
@@ -74,9 +74,9 @@ router.get('/folio/:folio', async (req, res) => {
 // Crear nuevo rechazo
 router.post('/', async (req, res) => {
   try {
-    const { 
-      exit_record_id, 
-      part_number_id, 
+    const {
+      exit_record_id,
+      part_number_id,
       operator_id,
       expected_quantity,
       actual_quantity,
@@ -84,16 +84,16 @@ router.post('/', async (req, res) => {
       box_codes
     } = req.body;
 
-    if (!exit_record_id || !part_number_id || !operator_id || !rejection_reason) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Faltan campos requeridos' 
+    if (!part_number_id || !operator_id || !rejection_reason) {
+      return res.status(400).json({
+        success: false,
+        error: 'Faltan campos requeridos'
       });
     }
 
     const result = await OqcRejectionModel.create(req.body);
     const rejection = await OqcRejectionModel.getById(result.id);
-    
+
     res.status(201).json({ success: true, data: rejection });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -104,22 +104,22 @@ router.post('/', async (req, res) => {
 router.patch('/:id/status', async (req, res) => {
   try {
     const { status, corrected_by, correction_notes } = req.body;
-    
+
     const validStatuses = ['pending', 'in_review', 'corrected', 'returned'];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Estado inválido' 
+      return res.status(400).json({
+        success: false,
+        error: 'Estado inválido'
       });
     }
 
     await OqcRejectionModel.updateStatus(
-      req.params.id, 
-      status, 
-      corrected_by, 
+      req.params.id,
+      status,
+      corrected_by,
       correction_notes
     );
-    
+
     const rejection = await OqcRejectionModel.getById(req.params.id);
     res.json({ success: true, data: rejection });
   } catch (error) {
@@ -131,11 +131,11 @@ router.patch('/:id/status', async (req, res) => {
 router.patch('/:id/return', async (req, res) => {
   try {
     const { return_folio } = req.body;
-    
+
     if (!return_folio) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Se requiere el folio de retorno' 
+      return res.status(400).json({
+        success: false,
+        error: 'Se requiere el folio de retorno'
       });
     }
 

@@ -26,33 +26,33 @@ class PrintConfig {
   });
 
   Map<String, dynamic> toJson() => {
-    'printerName': printerName,
-    'orientation': orientation.index,
-    'paperSize': paperSize.index,
-    'marginTop': marginTop,
-    'marginBottom': marginBottom,
-    'marginLeft': marginLeft,
-    'marginRight': marginRight,
-  };
+        'printerName': printerName,
+        'orientation': orientation.index,
+        'paperSize': paperSize.index,
+        'marginTop': marginTop,
+        'marginBottom': marginBottom,
+        'marginLeft': marginLeft,
+        'marginRight': marginRight,
+      };
 
   factory PrintConfig.fromJson(Map<String, dynamic> json) => PrintConfig(
-    printerName: json['printerName'],
-    orientation: PaperOrientation.values[json['orientation'] ?? 0],
-    paperSize: PaperSize.values[json['paperSize'] ?? 0],
-    marginTop: (json['marginTop'] ?? 10).toDouble(),
-    marginBottom: (json['marginBottom'] ?? 10).toDouble(),
-    marginLeft: (json['marginLeft'] ?? 10).toDouble(),
-    marginRight: (json['marginRight'] ?? 10).toDouble(),
-  );
+        printerName: json['printerName'],
+        orientation: PaperOrientation.values[json['orientation'] ?? 0],
+        paperSize: PaperSize.values[json['paperSize'] ?? 0],
+        marginTop: (json['marginTop'] ?? 10).toDouble(),
+        marginBottom: (json['marginBottom'] ?? 10).toDouble(),
+        marginLeft: (json['marginLeft'] ?? 10).toDouble(),
+        marginRight: (json['marginRight'] ?? 10).toDouble(),
+      );
 }
 
 enum PaperOrientation { portrait, landscape }
 
 enum PaperSize {
-  letter,    // 8.5 x 11 in
-  legal,     // 8.5 x 14 in
-  a4,        // 210 x 297 mm
-  a5,        // 148 x 210 mm
+  letter, // 8.5 x 11 in
+  legal, // 8.5 x 14 in
+  a4, // 210 x 297 mm
+  a5, // 148 x 210 mm
   halfLetter, // 5.5 x 8.5 in
   custom,
 }
@@ -86,7 +86,8 @@ extension PaperSizeExtension on PaperSize {
       case PaperSize.a5:
         return PdfPageFormat.a5;
       case PaperSize.halfLetter:
-        return const PdfPageFormat(5.5 * PdfPageFormat.inch, 8.5 * PdfPageFormat.inch);
+        return const PdfPageFormat(
+            5.5 * PdfPageFormat.inch, 8.5 * PdfPageFormat.inch);
       case PaperSize.custom:
         return PdfPageFormat.letter;
     }
@@ -103,7 +104,7 @@ class PrintService {
     try {
       final directory = await getApplicationSupportDirectory();
       final file = File('${directory.path}/$_configFileName');
-      
+
       if (await file.exists()) {
         final jsonString = await file.readAsString();
         final json = jsonDecode(jsonString);
@@ -118,7 +119,7 @@ class PrintService {
     try {
       final directory = await getApplicationSupportDirectory();
       final file = File('${directory.path}/$_configFileName');
-      
+
       await file.writeAsString(jsonEncode(config.toJson()));
       _config = config;
     } catch (e) {
@@ -183,7 +184,7 @@ class PrintService {
           (p) => p.name == _config.printerName,
           orElse: () => printers.first,
         );
-        
+
         return await Printing.directPrintPdf(
           printer: printer,
           onLayout: (format) => pdf.save(),
@@ -202,7 +203,7 @@ class PrintService {
 
   static PdfPageFormat _getPageFormat() {
     PdfPageFormat format = _config.paperSize.pdfFormat;
-    
+
     // Aplicar márgenes (siempre orientación vertical)
     format = format.copyWith(
       marginTop: _config.marginTop * PdfPageFormat.mm,
@@ -210,7 +211,7 @@ class PrintService {
       marginLeft: _config.marginLeft * PdfPageFormat.mm,
       marginRight: _config.marginRight * PdfPageFormat.mm,
     );
-    
+
     return format;
   }
 
@@ -228,233 +229,247 @@ class PrintService {
     pw.MemoryImage? logoImage,
   }) async {
     final pdf = pw.Document();
-    
+
     // Get page format based on config
     PdfPageFormat format = _getPageFormat();
 
     // Generate QR data
-    final qrData = 'RECHAZO:$rejectionFolio|FOLIO:$exitFolio|PN:$partNumber|QTY:$quantity';
+    final qrData =
+        'RECHAZO:$rejectionFolio|FOLIO:$exitFolio|PN:$partNumber|QTY:$quantity';
 
     pdf.addPage(
-        pw.Page(
-          pageFormat: format,
-          build: (pw.Context context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                // Header - Logo a la izquierda, título centrado
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.all(10),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 2),
-                  ),
-                  child: pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.center,
-                    children: [
-                      // Logo a la izquierda
-                      if (logoImage != null)
-                        pw.Image(logoImage, width: 90, height: 32),
-                      if (logoImage != null)
-                        pw.SizedBox(width: 10),
-                      // Título centrado
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.center,
-                          children: [
-                            pw.Text(
-                              'MATERIAL RECHAZADO - OQC',
-                              style: pw.TextStyle(
-                                fontSize: 16,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                            pw.SizedBox(height: 2),
-                            pw.Text(
-                              'ILSAN ELECTRONICS',
-                              style: const pw.TextStyle(fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+      pw.Page(
+        pageFormat: format,
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header - Logo a la izquierda, título centrado
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: 2),
                 ),
-                pw.SizedBox(height: 12),
-                
-                // Main content with QR
-                pw.Row(
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    // Logo a la izquierda
+                    if (logoImage != null)
+                      pw.Image(logoImage, width: 90, height: 32),
+                    if (logoImage != null) pw.SizedBox(width: 10),
+                    // Título centrado
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
+                        children: [
+                          pw.Text(
+                            'MATERIAL RECHAZADO - OQC',
+                            style: pw.TextStyle(
+                              fontSize: 16,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            'ILSAN ELECTRONICS',
+                            style: const pw.TextStyle(fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 12),
+
+              // Main content with QR
+              pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  // Left side - Info
+                  pw.Expanded(
+                    flex: 3,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        _buildInfoRow('Folio Rechazo:', rejectionFolio),
+                        _buildInfoRow('Folio Salida:', exitFolio),
+                        _buildInfoRow('Fecha:', _formatDate(rejectionDate)),
+                        _buildInfoRow('Hora:', _formatTime(rejectionDate)),
+                        pw.SizedBox(height: 8),
+                        _buildInfoRow('Número de Parte:', partNumber),
+                        _buildInfoRow('Descripción:', partDescription),
+                        _buildInfoRow('Cantidad:', '$quantity piezas'),
+                        pw.SizedBox(height: 8),
+                        _buildInfoRow('Operador:', operatorName),
+                        _buildInfoRow('No. Empleado:', operatorId),
+                      ],
+                    ),
+                  ),
+                  // Right side - QR
+                  pw.Expanded(
+                    flex: 1,
+                    child: pw.Column(
+                      children: [
+                        pw.BarcodeWidget(
+                          barcode: pw.Barcode.dataMatrix(),
+                          data: qrData,
+                          width: 70,
+                          height: 70,
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          rejectionFolio,
+                          style: const pw.TextStyle(fontSize: 8),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              pw.SizedBox(height: 12),
+
+              // Box codes table section - Layout de 3 columnas
+              pw.Container(
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: 0.5),
+                ),
+                child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    // Left side - Info
-                    pw.Expanded(
-                      flex: 3,
+                    pw.Container(
+                      width: double.infinity,
+                      padding: const pw.EdgeInsets.all(6),
+                      color: PdfColors.grey300,
                       child: pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
-                          _buildInfoRow('Folio Rechazo:', rejectionFolio),
-                          _buildInfoRow('Folio Salida:', exitFolio),
-                          _buildInfoRow('Fecha:', _formatDate(rejectionDate)),
-                          _buildInfoRow('Hora:', _formatTime(rejectionDate)),
-                          pw.SizedBox(height: 8),
-                          _buildInfoRow('Número de Parte:', partNumber),
-                          _buildInfoRow('Descripción:', partDescription),
-                          _buildInfoRow('Cantidad:', '$quantity piezas'),
-                          pw.SizedBox(height: 8),
-                          _buildInfoRow('Operador:', operatorName),
-                          _buildInfoRow('No. Empleado:', operatorId),
-                        ],
-                      ),
-                    ),
-                    // Right side - QR
-                    pw.Expanded(
-                      flex: 1,
-                      child: pw.Column(
-                        children: [
-                          pw.BarcodeWidget(
-                            barcode: pw.Barcode.qrCode(),
-                            data: qrData,
-                            width: 70,
-                            height: 70,
-                          ),
-                          pw.SizedBox(height: 4),
                           pw.Text(
-                            rejectionFolio,
-                            style: const pw.TextStyle(fontSize: 8),
+                            'CAJAS RECHAZADAS',
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                          pw.Text(
+                            '(Información del sistema)',
+                            style: const pw.TextStyle(
+                              fontSize: 8,
+                              color: PdfColors.grey700,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-                pw.SizedBox(height: 12),
-                
-                // Box codes table section - Layout de 3 columnas
-                pw.Container(
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 0.5),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Container(
-                        width: double.infinity,
-                        padding: const pw.EdgeInsets.all(6),
-                        color: PdfColors.grey300,
-                        child: pw.Text(
-                          'CAJAS RECHAZADAS',
-                          style: pw.TextStyle(
-                            fontWeight: pw.FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                      // Multi-column layout for boxes
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: _buildBoxesMultiColumn(boxesData),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 10),
-                
-                // Observations
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.all(6),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 0.5),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'OBSERVACIONES:',
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        observations.isEmpty ? 'Sin observaciones' : observations,
-                        style: const pw.TextStyle(fontSize: 9),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 12),
-                
-                // Signature areas for rejection
-                pw.Text(
-                  'FIRMAS DE RECHAZO:',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
-                ),
-                pw.SizedBox(height: 6),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildSignatureAreaSimple('Inspector OQC'),
-                    _buildSignatureAreaSimple('Manufactura'),
-                    _buildSignatureAreaSimple('Calidad'),
-                  ],
-                ),
-                pw.SizedBox(height: 70),
-                
-                // Signature areas for release
-                pw.Container(
-                  width: double.infinity,
-                  padding: const pw.EdgeInsets.all(6),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 0.5),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'LIBERACIÓN DEL MATERIAL:',
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
-                      ),
-                      pw.SizedBox(height: 8),
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildSignatureAreaWithDate('Manufactura'),
-                          _buildSignatureAreaWithDate('Calidad'),
-                          _buildSignatureAreaWithDate('OQC'),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Footer
-                pw.Spacer(),
-                pw.Divider(),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      'Documento generado automáticamente',
-                      style: const pw.TextStyle(fontSize: 8),
-                    ),
-                    pw.Text(
-                      'Destino: CONTENCIÓN',
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
+                    // Multi-column layout for boxes
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(6),
+                      child: _buildBoxesMultiColumn(boxesData),
                     ),
                   ],
                 ),
-              ],
-            );
-          },
-        ),
-      );
+              ),
+              pw.SizedBox(height: 10),
 
-      return pdf;
+              // Observations
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(6),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: 0.5),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'OBSERVACIONES:',
+                      style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      observations.isEmpty ? 'Sin observaciones' : observations,
+                      style: const pw.TextStyle(fontSize: 9),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 12),
+
+              // Signature areas for rejection
+              pw.Text(
+                'FIRMAS DE RECHAZO:',
+                style:
+                    pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+              ),
+              pw.SizedBox(height: 6),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  _buildSignatureAreaSimple('Inspector OQC'),
+                  _buildSignatureAreaSimple('Manufactura'),
+                  _buildSignatureAreaSimple('Calidad'),
+                ],
+              ),
+              pw.SizedBox(height: 70),
+
+              // Signature areas for release
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(6),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: 0.5),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'LIBERACIÓN DEL MATERIAL:',
+                      style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 10),
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildSignatureAreaWithDate('Manufactura'),
+                        _buildSignatureAreaWithDate('Calidad'),
+                        _buildSignatureAreaWithDate('OQC'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Footer
+              pw.Spacer(),
+              pw.Divider(),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'Documento generado automáticamente',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                  pw.Text(
+                    'Destino: CONTENCIÓN',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    return pdf;
   }
 
   static pw.Widget _buildInfoRow(String label, String value) {
@@ -498,7 +513,8 @@ class PrintService {
             ),
           ),
           pw.SizedBox(height: 2),
-          pw.Text(title, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+          pw.Text(title,
+              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
         ],
       ),
     );
@@ -517,7 +533,8 @@ class PrintService {
             ),
           ),
           pw.SizedBox(height: 2),
-          pw.Text(title, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+          pw.Text(title,
+              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 4),
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.center,
@@ -528,7 +545,8 @@ class PrintService {
                 decoration: const pw.BoxDecoration(
                   border: pw.Border(bottom: pw.BorderSide(width: 0.5)),
                 ),
-                child: pw.Text('____/____/____', style: const pw.TextStyle(fontSize: 6)),
+                child: pw.Text('____/____/____',
+                    style: const pw.TextStyle(fontSize: 6)),
               ),
             ],
           ),
@@ -542,7 +560,8 @@ class PrintService {
                 decoration: const pw.BoxDecoration(
                   border: pw.Border(bottom: pw.BorderSide(width: 0.5)),
                 ),
-                child: pw.Text('____:____', style: const pw.TextStyle(fontSize: 6)),
+                child: pw.Text('____:____',
+                    style: const pw.TextStyle(fontSize: 6)),
               ),
             ],
           ),
@@ -564,7 +583,7 @@ class PrintService {
     const int itemsPerColumn = 5;
     final int totalItems = boxesData.length;
     final int numColumns = (totalItems / itemsPerColumn).ceil().clamp(1, 3);
-    
+
     // Dividir los datos en columnas
     List<List<Map<String, String>>> columns = [];
     for (int i = 0; i < numColumns; i++) {
@@ -574,14 +593,14 @@ class PrintService {
         columns.add(boxesData.sublist(start, end));
       }
     }
-    
+
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: columns.asMap().entries.map((colEntry) {
         final colIndex = colEntry.key;
         final colData = colEntry.value;
         final baseIndex = colIndex * itemsPerColumn;
-        
+
         return pw.Expanded(
           child: pw.Padding(
             padding: pw.EdgeInsets.only(
@@ -590,9 +609,11 @@ class PrintService {
             child: pw.Table(
               border: pw.TableBorder.all(width: 0.5),
               columnWidths: {
-                0: const pw.FixedColumnWidth(20),
-                1: const pw.FlexColumnWidth(2),
-                2: const pw.FlexColumnWidth(1.5),
+                0: const pw.FixedColumnWidth(18),
+                1: const pw.FlexColumnWidth(2.5),
+                2: const pw.FixedColumnWidth(35),
+                3: const pw.FlexColumnWidth(1.5),
+                4: const pw.FlexColumnWidth(1.2),
               },
               children: [
                 // Header
@@ -601,15 +622,33 @@ class PrintService {
                   children: [
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(2),
-                      child: pw.Text('#', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                      child: pw.Text('#',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 6)),
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(2),
-                      child: pw.Text('Código', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                      child: pw.Text('Código',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 6)),
                     ),
                     pw.Padding(
                       padding: const pw.EdgeInsets.all(2),
-                      child: pw.Text('LQC', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7)),
+                      child: pw.Text('Pzas',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 6)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(2),
+                      child: pw.Text('No. Parte',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 6)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(2),
+                      child: pw.Text('LQC',
+                          style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold, fontSize: 6)),
                     ),
                   ],
                 ),
@@ -618,37 +657,58 @@ class PrintService {
                   final idx = baseIndex + entry.key + 1;
                   final box = entry.value;
                   final lqcDate = box['lqcDate'] ?? '';
+                  final quantity = box['quantity'] ?? '';
+                  final partNumber = box['partNumber'] ?? '';
                   // Formatear fecha LQC (solo mostrar fecha y hora corta)
                   String formattedLqc = '';
                   if (lqcDate.isNotEmpty) {
                     try {
-                      final dateStr = lqcDate.replaceAll('T', ' ').replaceAll('Z', '').split('.')[0];
+                      final dateStr = lqcDate
+                          .replaceAll('T', ' ')
+                          .replaceAll('Z', '')
+                          .split('.')[0];
                       final parts = dateStr.split(' ');
                       if (parts.length >= 2) {
                         final datePart = parts[0].split('-');
                         final timePart = parts[1].split(':');
                         if (datePart.length >= 3 && timePart.length >= 2) {
-                          formattedLqc = '${datePart[2]}/${datePart[1]} ${timePart[0]}:${timePart[1]}';
+                          formattedLqc =
+                              '${datePart[2]}/${datePart[1]} ${timePart[0]}:${timePart[1]}';
                         }
                       }
                     } catch (e) {
-                      formattedLqc = lqcDate.length > 10 ? lqcDate.substring(0, 10) : lqcDate;
+                      formattedLqc = lqcDate.length > 10
+                          ? lqcDate.substring(0, 10)
+                          : lqcDate;
                     }
                   }
-                  
+
                   return pw.TableRow(
                     children: [
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(2),
-                        child: pw.Text('$idx', style: const pw.TextStyle(fontSize: 7)),
+                        child: pw.Text('$idx',
+                            style: const pw.TextStyle(fontSize: 6)),
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(2),
-                        child: pw.Text(box['boxCode'] ?? '', style: const pw.TextStyle(fontSize: 7)),
+                        child: pw.Text(box['boxCode'] ?? '',
+                            style: const pw.TextStyle(fontSize: 6)),
                       ),
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(2),
-                        child: pw.Text(formattedLqc, style: const pw.TextStyle(fontSize: 6)),
+                        child: pw.Text(quantity,
+                            style: const pw.TextStyle(fontSize: 6)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(2),
+                        child: pw.Text(partNumber,
+                            style: const pw.TextStyle(fontSize: 5)),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(2),
+                        child: pw.Text(formattedLqc,
+                            style: const pw.TextStyle(fontSize: 5)),
                       ),
                     ],
                   );

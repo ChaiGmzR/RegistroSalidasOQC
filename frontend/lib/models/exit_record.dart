@@ -14,6 +14,9 @@ class ExitRecord {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  // Campos adicionales
+  final String? lotNumber;
+
   // Campos relacionados
   final String? partNumber;
   final String? partDescription;
@@ -38,6 +41,7 @@ class ExitRecord {
     this.qcPassed = true,
     this.createdAt,
     this.updatedAt,
+    this.lotNumber,
     this.partNumber,
     this.partDescription,
     this.model,
@@ -70,6 +74,7 @@ class ExitRecord {
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])
           : null,
+      lotNumber: json['lot_number'],
       partNumber: json['part_number'],
       partDescription: json['part_description'],
       model: json['model'],
@@ -131,6 +136,7 @@ class ExitRecord {
     String? status,
     String? observations,
     bool? qcPassed,
+    String? lotNumber,
   }) {
     return ExitRecord(
       id: id ?? this.id,
@@ -144,6 +150,7 @@ class ExitRecord {
       status: status ?? this.status,
       observations: observations ?? this.observations,
       qcPassed: qcPassed ?? this.qcPassed,
+      lotNumber: lotNumber ?? this.lotNumber,
     );
   }
 }
