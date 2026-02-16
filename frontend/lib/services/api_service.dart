@@ -10,6 +10,25 @@ import 'logger_service.dart';
 
 class ApiService {
   static final _log = LoggerService();
+
+  /// Decodifica JSON de forma segura. Si la respuesta es HTML (404), lanza un error descriptivo.
+  static Map<String, dynamic> _safeJsonDecode(http.Response response, String endpoint) {
+    if (response.body.trimLeft().startsWith('<')) {
+      _log.error('API', '$endpoint: El backend devolvió HTML en lugar de JSON',
+          'HTTP ${response.statusCode}\n${response.body.substring(0, response.body.length.clamp(0, 200))}');
+      throw Exception(
+          'El backend devolvió HTML (HTTP ${response.statusCode}). '
+          'Posible ruta no encontrada o backend desactualizado.');
+    }
+    try {
+      return json.decode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      _log.error('API', '$endpoint: Error parseando JSON', 
+          'HTTP ${response.statusCode}, Body: ${response.body.substring(0, response.body.length.clamp(0, 200))}');
+      throw Exception('Respuesta inválida del servidor (HTTP ${response.statusCode})');
+    }
+  }
+
   // === PART NUMBERS ===
   static Future<List<PartNumber>> getPartNumbers() async {
     try {
@@ -22,7 +41,7 @@ class ApiService {
 
       _log.debug('API', 'Respuesta getPartNumbers: ${response.statusCode}');
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'getPartNumbers');
         if (data['success']) {
           final list = (data['data'] as List)
               .map((item) => PartNumber.fromJson(item))
@@ -51,13 +70,13 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 201) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           _log.info('API', 'Part number creado exitosamente');
           return PartNumber.fromJson(data['data']);
         }
       }
-      final error = json.decode(response.body);
+      final error = _safeJsonDecode(response, 'API');
       _log.error('API', 'Error al crear part number', error.toString());
       throw Exception(error['error'] ?? 'Error al crear número de parte');
     } catch (e) {
@@ -77,7 +96,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return PartNumber.fromJson(data['data']);
         }
@@ -115,7 +134,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'getEsdBoxes');
         if (data['success']) {
           final list = (data['data'] as List)
               .map((item) => EsdBox.fromJson(item))
@@ -143,7 +162,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'getOperators');
         if (data['success']) {
           final list = (data['data'] as List)
               .map((item) => Operator.fromJson(item))
@@ -172,7 +191,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return Operator.fromJson(data['data']);
         }
@@ -194,7 +213,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return Operator.fromJson(data['data']);
         }
@@ -216,12 +235,12 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 201) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return Operator.fromJson(data['data']);
         }
       }
-      final error = json.decode(response.body);
+      final error = _safeJsonDecode(response, 'API');
       throw Exception(error['error'] ?? 'Error al crear operador');
     } catch (e) {
       throw Exception('Error: $e');
@@ -239,7 +258,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return Operator.fromJson(data['data']);
         }
@@ -290,7 +309,7 @@ class ApiService {
       final response = await http.get(uri).timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'getExitRecords');
         if (data['success']) {
           final list = (data['data'] as List)
               .map((item) => ExitRecord.fromJson(item))
@@ -318,7 +337,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return data['data'];
         }
@@ -366,7 +385,7 @@ class ApiService {
           )
           .timeout(ApiConfig.connectionTimeout);
 
-      final data = json.decode(response.body);
+      final data = _safeJsonDecode(response, 'API');
 
       if (response.statusCode == 201 && data['success']) {
         _log.info('API', 'Registro batch creado', 'Folio: ${data['folio']}, Registros: ${data['recordsCreated']}');
@@ -395,12 +414,12 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 201) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return ExitRecord.fromJson(data['data']);
         }
       }
-      final error = json.decode(response.body);
+      final error = _safeJsonDecode(response, 'API');
       throw Exception(error['error'] ?? 'Error al crear registro');
     } catch (e) {
       throw Exception('Error: $e');
@@ -418,7 +437,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return ExitRecord.fromJson(data['data']);
         }
@@ -475,7 +494,7 @@ class ApiService {
       final response = await http.get(uri).timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return ExitRecordStats.fromJson(data['data']);
         }
@@ -499,7 +518,7 @@ class ApiService {
       final healthy = response.statusCode == 200;
       if (healthy) {
         try {
-          final data = json.decode(response.body);
+          final data = _safeJsonDecode(response, 'API');
           final dbStatus = data['database'] ?? 'unknown';
           _log.info('API', 'Health check: OK', 'DB: $dbStatus');
         } catch (_) {
@@ -525,7 +544,7 @@ class ApiService {
           )
           .timeout(ApiConfig.connectionTimeout);
 
-      final data = json.decode(response.body);
+      final data = _safeJsonDecode(response, 'API');
 
       if (response.statusCode == 200 && data['success']) {
         return {
@@ -584,7 +603,7 @@ class ApiService {
           )
           .timeout(ApiConfig.connectionTimeout);
 
-      final data = json.decode(response.body);
+      final data = _safeJsonDecode(response, 'API');
 
       if (response.statusCode == 201 && data['success']) {
         return {
@@ -616,7 +635,7 @@ class ApiService {
       final response = await http.get(uri).timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return (data['data'] as List)
               .map((item) => OqcRejection.fromJson(item))
@@ -638,7 +657,7 @@ class ApiService {
           .timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = _safeJsonDecode(response, 'API');
         if (data['success']) {
           return data['count'];
         }

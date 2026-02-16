@@ -66,9 +66,15 @@ app.get('/', (req, res) => {
   });
 });
 
+// Manejo de rutas no encontradas (404) - devolver JSON en lugar de HTML
+app.use((req, res) => {
+  console.error(`404 - Ruta no encontrada: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ success: false, error: `Ruta no encontrada: ${req.method} ${req.originalUrl}` });
+});
+
 // Manejo de errores
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error en request:', req.method, req.originalUrl, err.stack);
   res.status(500).json({ success: false, error: 'Error interno del servidor' });
 });
 
@@ -76,9 +82,19 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   try {
     await initDatabase();
+    console.log('✅ Base de datos inicializada correctamente');
+    
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Servidor OQC corriendo en http://localhost:${PORT}`);
       console.log(`📊 API disponible en http://localhost:${PORT}/api`);
+      console.log('📋 Rutas registradas:');
+      console.log('   - /api/part-numbers');
+      console.log('   - /api/esd-boxes');
+      console.log('   - /api/operators');
+      console.log('   - /api/exit-records');
+      console.log('   - /api/box-scans');
+      console.log('   - /api/oqc-rejections');
+      console.log('   - /api/health');
     });
 
     // Mantener el servidor activo
