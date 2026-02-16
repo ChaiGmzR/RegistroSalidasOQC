@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../services/logger_service.dart';
 import 'print_config_tab.dart';
 import 'part_numbers_tab.dart';
+import 'debug_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -105,7 +107,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     });
                   },
                 ),
+                const SizedBox(height: 12),
+                _buildSettingOption(
+                  icon: Icons.bug_report,
+                  title: 'Modo Debug / Logs',
+                  description:
+                      'Activa el modo debug para revisar logs y diagnosticar problemas',
+                  trailing: _buildDebugIndicator(),
+                  onTap: () {
+                    setState(() {
+                      _selectedScreen = _DebugScreenWrapper(
+                        onBack: () => setState(() => _selectedScreen = null),
+                      );
+                    });
+                  },
+                ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugIndicator() {
+    final logger = LoggerService();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: logger.debugMode
+            ? AppTheme.accentGreenLight.withOpacity(0.2)
+            : Colors.grey.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: logger.debugMode ? AppTheme.accentGreenLight : Colors.grey.shade400,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: logger.debugMode ? AppTheme.accentGreenLight : Colors.grey,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            logger.debugMode ? 'Activo' : 'Inactivo',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: logger.debugMode ? AppTheme.accentGreenLight : Colors.grey,
             ),
           ),
         ],
@@ -118,6 +173,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required String description,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return Material(
       color: AppTheme.cardBackground,
@@ -169,6 +225,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
+              if (trailing != null) ...[  
+                const SizedBox(width: 12),
+                trailing,
+              ],
               const Icon(
                 Icons.chevron_right,
                 color: AppTheme.textMuted,
@@ -318,6 +378,44 @@ class _PartNumbersScreen extends StatelessWidget {
             ),
           ),
           const Expanded(child: PartNumbersTab()),
+        ],
+      ),
+    );
+  }
+}
+
+// Wrapper para la pantalla de debug con botón de regreso
+class _DebugScreenWrapper extends StatelessWidget {
+  final VoidCallback onBack;
+
+  const _DebugScreenWrapper({required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppTheme.contentBackground,
+      child: Column(
+        children: [
+          // Header con botón de regreso
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: AppTheme.cardBackground,
+              border: Border(
+                bottom: BorderSide(color: AppTheme.borderColor),
+              ),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: onBack,
+                  tooltip: 'Volver a Configuración',
+                ),
+              ],
+            ),
+          ),
+          const Expanded(child: DebugScreen()),
         ],
       ),
     );

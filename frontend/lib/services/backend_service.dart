@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
+import 'logger_service.dart';
 
 /// Servicio para gestionar el proceso del backend Node.js
 class BackendService {
   static Process? _backendProcess;
   static bool _isRunning = false;
   static const int _defaultPort = 3000;
+  static final _log = LoggerService();
 
   /// Obtener la ruta del ejecutable del backend
   static String get _backendPath {
@@ -34,27 +36,25 @@ class BackendService {
   /// Iniciar el backend
   static Future<bool> start() async {
     if (_isRunning) {
-      debugPrint('Backend ya está en ejecución');
+      _log.info('Backend', 'Backend ya está en ejecución');
       return true;
     }
 
     final backendExe = _backendPath;
     final workDir = _workingDirectory;
 
-    debugPrint('Iniciando backend desde: $backendExe');
-    debugPrint('Directorio de trabajo: $workDir');
+    _log.info('Backend', 'Iniciando backend', 'Ruta: $backendExe\nDirectorio: $workDir');
 
     // Verificar que existe el ejecutable
     if (!File(backendExe).existsSync()) {
-      debugPrint(
-          'ERROR: No se encontró el ejecutable del backend en: $backendExe');
+      _log.error('Backend', 'Ejecutable no encontrado', backendExe);
       return false;
     }
 
     // Verificar que existe el archivo .env
     final envFile = File(path.join(workDir, '.env'));
     if (!envFile.existsSync()) {
-      debugPrint('WARNING: No se encontró archivo .env en: ${envFile.path}');
+      _log.warning('Backend', 'Archivo .env no encontrado', envFile.path);
     }
 
     try {
@@ -72,14 +72,14 @@ class BackendService {
       final isHealthy = await _checkHealth();
       if (isHealthy) {
         _isRunning = true;
-        debugPrint('Backend iniciado correctamente en puerto $_defaultPort');
+        _log.info('Backend', 'Backend iniciado correctamente', 'Puerto: $_defaultPort');
         return true;
       } else {
-        debugPrint('Backend iniciado pero no responde al health check');
+        _log.warning('Backend', 'Backend iniciado pero no responde al health check');
         return false;
       }
     } catch (e) {
-      debugPrint('Error al iniciar el backend: $e');
+      _log.error('Backend', 'Error al iniciar el backend', e.toString());
       return false;
     }
   }
@@ -87,7 +87,7 @@ class BackendService {
   /// Detener el backend
   static Future<void> stop() async {
     if (_backendProcess != null) {
-      debugPrint('Deteniendo backend...');
+      _log.info('Backend', 'Deteniendo backend...');
       _backendProcess!.kill();
       _backendProcess = null;
       _isRunning = false;
@@ -101,7 +101,7 @@ class BackendService {
             runInShell: true);
       }
     } catch (e) {
-      debugPrint('Error al intentar cerrar procesos: $e');
+      _log.warning('Backend', 'Error al intentar cerrar procesos', e.toString());
     }
   }
 
@@ -119,7 +119,7 @@ class BackendService {
 
       return response.statusCode == 200;
     } catch (e) {
-      debugPrint('Health check fallido: $e');
+      _log.debug('Backend', 'Health check fallido', e.toString());
       return false;
     }
   }

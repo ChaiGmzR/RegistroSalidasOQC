@@ -5,8 +5,10 @@ import '../models/operator.dart';
 import '../models/exit_record.dart';
 import '../models/oqc_rejection.dart';
 import '../services/api_service.dart';
+import '../services/logger_service.dart';
 
 class AppProvider with ChangeNotifier {
+  final _log = LoggerService();
   // Estado de conexión
   bool _isConnected = false;
   bool get isConnected => _isConnected;
@@ -52,9 +54,12 @@ class AppProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    _log.info('AppProvider', 'Inicializando aplicación...');
+
     try {
       _isConnected = await ApiService.checkHealth();
       if (_isConnected) {
+        _log.info('AppProvider', 'Conexión establecida, cargando datos...');
         await Future.wait([
           loadPartNumbers(),
           loadEsdBoxes(),
@@ -62,11 +67,15 @@ class AppProvider with ChangeNotifier {
           loadExitRecords(),
           loadStats(),
         ]);
+        _log.info('AppProvider', 'Datos iniciales cargados correctamente');
+      } else {
+        _log.warning('AppProvider', 'No se pudo conectar al servidor');
       }
       _errorMessage = null;
     } catch (e) {
       _errorMessage = e.toString();
       _isConnected = false;
+      _log.error('AppProvider', 'Error en inicialización', e.toString());
     }
 
     _isLoading = false;
@@ -217,13 +226,16 @@ class AppProvider with ChangeNotifier {
   // Crear registro de salida
   Future<ExitRecord?> createExitRecord(ExitRecord record) async {
     try {
+      _log.info('AppProvider', 'Creando registro de salida...');
       final created = await ApiService.createExitRecord(record);
       _exitRecords.insert(0, created);
       await loadStats();
+      _log.info('AppProvider', 'Registro de salida creado', 'ID: ${created.id}');
       notifyListeners();
       return created;
     } catch (e) {
       _errorMessage = e.toString();
+      _log.error('AppProvider', 'Error al crear registro de salida', e.toString());
       return null;
     }
   }

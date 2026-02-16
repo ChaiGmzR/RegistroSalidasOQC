@@ -6,33 +6,41 @@ import '../models/esd_box.dart';
 import '../models/operator.dart';
 import '../models/exit_record.dart';
 import '../models/oqc_rejection.dart';
+import 'logger_service.dart';
 
 class ApiService {
+  static final _log = LoggerService();
   // === PART NUMBERS ===
   static Future<List<PartNumber>> getPartNumbers() async {
     try {
+      _log.debug('API', 'GET ${ApiConfig.partNumbers}');
       final response = await http
           .get(
             Uri.parse(ApiConfig.partNumbers),
           )
           .timeout(ApiConfig.connectionTimeout);
 
+      _log.debug('API', 'Respuesta getPartNumbers: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success']) {
-          return (data['data'] as List)
+          final list = (data['data'] as List)
               .map((item) => PartNumber.fromJson(item))
               .toList();
+          _log.info('API', 'Part numbers cargados: ${list.length}');
+          return list;
         }
       }
       throw Exception('Error al obtener números de parte');
     } catch (e) {
+      _log.error('API', 'Error getPartNumbers', e.toString());
       throw Exception('Error de conexión: $e');
     }
   }
 
   static Future<PartNumber> createPartNumber(PartNumber partNumber) async {
     try {
+      _log.info('API', 'Creando part number: ${partNumber.partNumber}');
       final response = await http
           .post(
             Uri.parse(ApiConfig.partNumbers),
@@ -44,12 +52,15 @@ class ApiService {
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
         if (data['success']) {
+          _log.info('API', 'Part number creado exitosamente');
           return PartNumber.fromJson(data['data']);
         }
       }
       final error = json.decode(response.body);
+      _log.error('API', 'Error al crear part number', error.toString());
       throw Exception(error['error'] ?? 'Error al crear número de parte');
     } catch (e) {
+      _log.error('API', 'Error createPartNumber', e.toString());
       throw Exception('Error: $e');
     }
   }
@@ -95,6 +106,7 @@ class ApiService {
   // === ESD BOXES ===
   static Future<List<EsdBox>> getEsdBoxes() async {
     try {
+      _log.debug('API', 'GET ${ApiConfig.esdBoxes}');
       final response = await http
           .get(
             Uri.parse(ApiConfig.esdBoxes),
@@ -104,13 +116,16 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success']) {
-          return (data['data'] as List)
+          final list = (data['data'] as List)
               .map((item) => EsdBox.fromJson(item))
               .toList();
+          _log.info('API', 'Cajas ESD cargadas: ${list.length}');
+          return list;
         }
       }
       throw Exception('Error al obtener cajas ESD');
     } catch (e) {
+      _log.error('API', 'Error getEsdBoxes', e.toString());
       throw Exception('Error de conexión: $e');
     }
   }
@@ -118,6 +133,7 @@ class ApiService {
   // === OPERATORS ===
   static Future<List<Operator>> getOperators() async {
     try {
+      _log.debug('API', 'GET ${ApiConfig.operators}');
       final response = await http
           .get(
             Uri.parse(ApiConfig.operators),
@@ -127,13 +143,16 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success']) {
-          return (data['data'] as List)
+          final list = (data['data'] as List)
               .map((item) => Operator.fromJson(item))
               .toList();
+          _log.info('API', 'Operadores cargados: ${list.length}');
+          return list;
         }
       }
       throw Exception('Error al obtener operadores');
     } catch (e) {
+      _log.error('API', 'Error getOperators', e.toString());
       throw Exception('Error de conexión: $e');
     }
   }
@@ -264,18 +283,22 @@ class ApiService {
 
       final uri = Uri.parse(ApiConfig.exitRecords)
           .replace(queryParameters: queryParams);
+      _log.debug('API', 'GET $uri');
       final response = await http.get(uri).timeout(ApiConfig.connectionTimeout);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success']) {
-          return (data['data'] as List)
+          final list = (data['data'] as List)
               .map((item) => ExitRecord.fromJson(item))
               .toList();
+          _log.info('API', 'Registros de salida cargados: ${list.length}');
+          return list;
         }
       }
       throw Exception('Error al obtener registros');
     } catch (e) {
+      _log.error('API', 'Error getExitRecords', e.toString());
       throw Exception('Error de conexión: $e');
     }
   }
@@ -315,6 +338,7 @@ class ApiService {
     required List<Map<String, dynamic>> boxes,
   }) async {
     try {
+      _log.info('API', 'Creando registro batch con ${boxes.length} cajas', 'PartNumber ID: $partNumberId, Destino: $destination');
       final now = DateTime.now();
       final exitDateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
@@ -341,14 +365,17 @@ class ApiService {
       final data = json.decode(response.body);
 
       if (response.statusCode == 201 && data['success']) {
+        _log.info('API', 'Registro batch creado', 'Folio: ${data['folio']}, Registros: ${data['recordsCreated']}');
         return {
           'success': true,
           'folio': data['folio'],
           'recordsCreated': data['recordsCreated'],
         };
       }
+      _log.error('API', 'Error al crear registros batch', data.toString());
       throw Exception(data['error'] ?? 'Error al crear registros');
     } catch (e) {
+      _log.error('API', 'Error createExitRecordWithBoxes', e.toString());
       throw Exception('Error: $e');
     }
   }
@@ -458,14 +485,18 @@ class ApiService {
   // === HEALTH CHECK ===
   static Future<bool> checkHealth() async {
     try {
+      _log.debug('API', 'Health check: ${ApiConfig.health}');
       final response = await http
           .get(
             Uri.parse(ApiConfig.health),
           )
           .timeout(const Duration(seconds: 5));
 
-      return response.statusCode == 200;
+      final healthy = response.statusCode == 200;
+      _log.info('API', 'Health check: ${healthy ? "OK" : "FAILED"}', 'Status: ${response.statusCode}');
+      return healthy;
     } catch (e) {
+      _log.error('API', 'Health check fallido', e.toString());
       return false;
     }
   }
@@ -473,6 +504,7 @@ class ApiService {
   // === BOX SCANS ===
   static Future<Map<String, dynamic>> getBoxQuantity(String boxCode) async {
     try {
+      _log.debug('API', 'Consultando cantidad para caja: $boxCode');
       final response = await http
           .get(
             Uri.parse('${ApiConfig.boxScans}/quantity/$boxCode'),

@@ -9,23 +9,29 @@ import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/print_service.dart';
 import 'services/backend_service.dart';
+import 'services/logger_service.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  final log = LoggerService();
+  log.info('App', 'Iniciando OQC Registro de Salidas...');
+
   // Inicializar datos de localización para fechas
   await initializeDateFormatting('es', null);
+  log.debug('App', 'Localización inicializada');
 
   // Cargar configuración de impresión
   await PrintService.loadConfig();
+  log.debug('App', 'Configuración de impresión cargada');
 
   // Iniciar backend local (solo en desktop, no en web)
   if (!kIsWeb && Platform.isWindows) {
-    debugPrint('Iniciando backend local...');
+    log.info('App', 'Iniciando backend local...');
     final backendStarted = await BackendService.start();
     if (!backendStarted) {
-      debugPrint('WARNING: No se pudo iniciar el backend local');
+      log.warning('App', 'No se pudo iniciar el backend local');
     }
   }
 

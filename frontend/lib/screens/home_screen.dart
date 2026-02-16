@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../services/update_service.dart';
+import '../services/logger_service.dart';
 import '../widgets/update_dialog.dart';
 import '../config/update_config.dart';
 import 'dashboard_screen.dart';
@@ -11,6 +12,7 @@ import 'new_record_screen.dart';
 import 'operators_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
+import 'debug_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   bool _isExpanded = true;
+  final _log = LoggerService();
 
   final List<NavigationItem> _navigationItems = [
     NavigationItem(
@@ -70,22 +73,22 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!UpdateConfig.checkOnStartup) return;
 
     try {
-      debugPrint('🔍 Verificando actualizaciones...');
-      debugPrint('📌 Versión actual: ${UpdateConfig.currentVersion}');
+      _log.info('Updates', 'Verificando actualizaciones...');
+      _log.debug('Updates', 'Versión actual: ${UpdateConfig.currentVersion}');
 
       // Verificar actualizaciones normalmente
       final updateInfo = await UpdateService.checkForUpdate();
 
       if (updateInfo != null) {
-        debugPrint('✅ Nueva versión encontrada: ${updateInfo.version}');
+        _log.info('Updates', 'Nueva versión encontrada: ${updateInfo.version}');
         if (mounted) {
           UpdateDialog.show(context, updateInfo);
         }
       } else {
-        debugPrint('ℹ️ No hay actualizaciones disponibles');
+        _log.info('Updates', 'No hay actualizaciones disponibles');
       }
     } catch (e) {
-      debugPrint('❌ Error al verificar actualizaciones: $e');
+      _log.error('Updates', 'Error al verificar actualizaciones', e.toString());
     }
   }
 
@@ -103,6 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return const ReportsScreen();
       case 5:
         return const SettingsScreen();
+      case 6:
+        return const DebugScreen();
       default:
         return const NewRecordScreen();
     }
@@ -287,33 +292,121 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
 
                     // Version Display
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: _isExpanded ? 16 : 8,
-                        vertical: 8,
+                    GestureDetector(
+                      onDoubleTap: () {
+                        // Acceso rápido al debug con doble tap en la versión
+                        setState(() {
+                          _selectedIndex = 6; // Debug screen
+                        });
+                      },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: _isExpanded ? 16 : 8,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: _isExpanded
+                              ? MainAxisAlignment.start
+                              : MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: AppTheme.textGray.withAlpha(150),
+                              size: 14,
+                            ),
+                            if (_isExpanded) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                'v${UpdateConfig.currentVersion}',
+                                style: TextStyle(
+                                  color: AppTheme.textGray.withAlpha(150),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: _isExpanded
-                            ? MainAxisAlignment.start
-                            : MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: AppTheme.textGray.withAlpha(150),
-                            size: 14,
-                          ),
-                          if (_isExpanded) ...[
-                            const SizedBox(width: 8),
-                            Text(
-                              'v${UpdateConfig.currentVersion}',
-                              style: TextStyle(
-                                color: AppTheme.textGray.withAlpha(150),
-                                fontSize: 11,
+                    ),
+
+                    // Debug Mode Indicator (solo visible cuando debug está activo)
+                    ListenableBuilder(
+                      listenable: _log,
+                      builder: (context, _) {
+                        if (!_log.debugMode) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _selectedIndex = 6;
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                height: 36,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accentOrange.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppTheme.accentOrange.withOpacity(0.4),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: _isExpanded
+                                      ? MainAxisAlignment.start
+                                      : MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.bug_report,
+                                      color: AppTheme.accentOrange,
+                                      size: 16,
+                                    ),
+                                    if (_isExpanded) ...[
+                                      const SizedBox(width: 8),
+                                      const Expanded(
+                                        child: Text(
+                                          'Debug activo',
+                                          style: TextStyle(
+                                            color: AppTheme.accentOrange,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      ListenableBuilder(
+                                        listenable: _log,
+                                        builder: (context, _) {
+                                          if (_log.errorCount == 0) return const SizedBox.shrink();
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.accentRed,
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              '${_log.errorCount}',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ],
-                        ],
-                      ),
+                          ),
+                        );
+                      },
                     ),
 
                     // Connection Status
