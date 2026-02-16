@@ -7,7 +7,7 @@ class UpdateConfig {
   static const String repoName = 'RegistroSalidasOQC';
 
   /// Versión actual de la aplicación (debe coincidir con pubspec.yaml)
-  static const String currentVersion = '1.0.11';
+  static const String currentVersion = '1.0.12';
 
   /// URL de la API de GitHub para obtener el último release
   static String get latestReleaseUrl =>

@@ -159,7 +159,7 @@ Configuración > Modo Debug / Logs y revisa los logs de la fuente "API" y "Updat
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| "URL de descarga no disponible" | El release no tiene un asset `.exe` | Subir el instalador `.exe`, no un `.zip` |
+| "URL de descarga no disponible" | El release no tiene un asset `.exe` | Subir el instalador `.exe`, no un `.zip` |2026-02-16 22:30:51
 | La app no detecta la actualización | Versión no actualizada en `update_config.dart` | Verificar que `currentVersion` coincida |
 | Instalador no se genera | Inno Setup no instalado o `installer.iss` desactualizado | Instalar Inno Setup 6 y verificar rutas en el `.iss` |
 

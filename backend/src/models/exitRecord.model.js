@@ -49,11 +49,10 @@ class ExitRecordModel {
 
   // Generar folio único
   static async generateFolio() {
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const prefix = `OQC${year}${month}${day}`;
+    // Usar fecha del servidor MySQL con timezone correcta
+    const [timeRows] = await pool.query("SELECT DATE_FORMAT(NOW(), '%y') as yr, DATE_FORMAT(NOW(), '%m') as mo, DATE_FORMAT(NOW(), '%d') as dy");
+    const { yr, mo, dy } = timeRows[0];
+    const prefix = `OQC${yr}${mo}${dy}`;
     
     const [rows] = await pool.query(
       `SELECT folio FROM exit_records WHERE folio LIKE ? ORDER BY folio DESC LIMIT 1`,

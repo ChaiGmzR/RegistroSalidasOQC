@@ -3,8 +3,9 @@ const pool = require('../config/database');
 class OqcRejectionModel {
   // Generar folio de rechazo (REJ-YYYYMMDD-XXX)
   static async generateFolio() {
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+    // Obtener fecha/hora del servidor MySQL (ya configurado con timezone correcta)
+    const [timeRows] = await pool.query("SELECT DATE_FORMAT(NOW(), '%Y%m%d') as dateStr");
+    const dateStr = timeRows[0].dateStr;
     const prefix = `REJ-${dateStr}`;
 
     const [rows] = await pool.query(
@@ -135,8 +136,8 @@ class OqcRejectionModel {
       `INSERT INTO oqc_rejections 
        (rejection_folio, exit_record_id, part_number_id, operator_id, employee_id,
         expected_quantity, actual_quantity, quantity_difference, 
-        rejection_reason, box_codes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        rejection_reason, box_codes, rejection_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [folio, exitRecordIdValue, part_number_id, operator_id, employeeId,
         expected_quantity, actual_quantity, quantity_difference,
         rejection_reason, box_codes]

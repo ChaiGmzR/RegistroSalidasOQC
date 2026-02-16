@@ -4,6 +4,11 @@ const initDatabase = async () => {
   try {
     const connection = await pool.getConnection();
 
+    // Configurar timezone de la sesión
+    const tz = process.env.DB_TIMEZONE || '-06:00';
+    await connection.query(`SET time_zone = '${tz}'`);
+    console.log(`🕐 Timezone de sesión MySQL configurada: ${tz}`);
+
     // Tabla de números de parte (Part Numbers)
     await connection.query(`
       CREATE TABLE IF NOT EXISTS part_numbers (
