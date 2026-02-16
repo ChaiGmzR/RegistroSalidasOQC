@@ -28,13 +28,26 @@ app.use('/api/exit-records', exitRecordRoutes);
 app.use('/api/box-scans', boxScanRoutes);
 app.use('/api/oqc-rejections', oqcRejectionRoutes);
 
-// Ruta de estado
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'OQC Exit Records API Running',
-    timestamp: new Date().toISOString()
-  });
+// Ruta de estado (incluye verificación de BD)
+app.get('/api/health', async (req, res) => {
+  try {
+    const pool = require('./config/database');
+    await pool.query('SELECT 1');
+    res.json({ 
+      status: 'OK', 
+      database: 'connected',
+      message: 'OQC Exit Records API Running',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Health check - DB error:', error.message);
+    res.status(503).json({ 
+      status: 'ERROR', 
+      database: 'disconnected',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Ruta raíz

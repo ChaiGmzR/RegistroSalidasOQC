@@ -60,6 +60,8 @@ class AppProvider with ChangeNotifier {
       _isConnected = await ApiService.checkHealth();
       if (_isConnected) {
         _log.info('AppProvider', 'Conexión establecida, cargando datos...');
+        
+        _errorMessage = null; // Reset antes de cargar
         await Future.wait([
           loadPartNumbers(),
           loadEsdBoxes(),
@@ -67,7 +69,12 @@ class AppProvider with ChangeNotifier {
           loadExitRecords(),
           loadStats(),
         ]);
-        _log.info('AppProvider', 'Datos iniciales cargados correctamente');
+        
+        if (_errorMessage != null) {
+          _log.error('AppProvider', 'Error al cargar datos iniciales', _errorMessage);
+        } else {
+          _log.info('AppProvider', 'Datos iniciales cargados correctamente');
+        }
       } else {
         _log.warning('AppProvider', 'No se pudo conectar al servidor');
       }

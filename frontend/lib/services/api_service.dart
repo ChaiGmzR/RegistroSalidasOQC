@@ -31,7 +31,8 @@ class ApiService {
           return list;
         }
       }
-      throw Exception('Error al obtener números de parte');
+      _log.error('API', 'getPartNumbers HTTP ${response.statusCode}', response.body);
+      throw Exception('Error al obtener números de parte (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getPartNumbers', e.toString());
       throw Exception('Error de conexión: $e');
@@ -123,7 +124,8 @@ class ApiService {
           return list;
         }
       }
-      throw Exception('Error al obtener cajas ESD');
+      _log.error('API', 'getEsdBoxes HTTP ${response.statusCode}', response.body);
+      throw Exception('Error al obtener cajas ESD (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getEsdBoxes', e.toString());
       throw Exception('Error de conexión: $e');
@@ -150,7 +152,8 @@ class ApiService {
           return list;
         }
       }
-      throw Exception('Error al obtener operadores');
+      _log.error('API', 'getOperators HTTP ${response.statusCode}', response.body);
+      throw Exception('Error al obtener operadores (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getOperators', e.toString());
       throw Exception('Error de conexión: $e');
@@ -296,7 +299,8 @@ class ApiService {
           return list;
         }
       }
-      throw Exception('Error al obtener registros');
+      _log.error('API', 'getExitRecords HTTP ${response.statusCode}', response.body);
+      throw Exception('Error al obtener registros (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getExitRecords', e.toString());
       throw Exception('Error de conexión: $e');
@@ -493,7 +497,17 @@ class ApiService {
           .timeout(const Duration(seconds: 5));
 
       final healthy = response.statusCode == 200;
-      _log.info('API', 'Health check: ${healthy ? "OK" : "FAILED"}', 'Status: ${response.statusCode}');
+      if (healthy) {
+        try {
+          final data = json.decode(response.body);
+          final dbStatus = data['database'] ?? 'unknown';
+          _log.info('API', 'Health check: OK', 'DB: $dbStatus');
+        } catch (_) {
+          _log.info('API', 'Health check: OK');
+        }
+      } else {
+        _log.error('API', 'Health check FAILED', 'Status: ${response.statusCode}, Body: ${response.body}');
+      }
       return healthy;
     } catch (e) {
       _log.error('API', 'Health check fallido', e.toString());

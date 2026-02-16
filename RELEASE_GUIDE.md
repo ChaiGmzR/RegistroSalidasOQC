@@ -137,7 +137,7 @@ OQC_Registro_Salidas_Setup_X.X.X.exe  (instalador generado)
 - [ ] Compilación Flutter exitosa (`flutter build windows --release`)
 - [ ] Instalador compilado con Inno Setup (genera `.exe` en `installers/`)
 - [ ] Tag de Git creado
-- [ ] Release publicado en GitHub con el **`.exe` del instalador** adjunto (NO un `.zip`)
+- [ ] Release publicado en GitHub con el **`.exe` del instalador** adjunto (NO un `.zip`)   
 
 ---
 
