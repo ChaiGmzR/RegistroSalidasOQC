@@ -3,6 +3,7 @@ import '../models/part_number.dart';
 import '../models/esd_box.dart';
 import '../models/operator.dart';
 import '../models/exit_record.dart';
+import '../models/oqc_rejection.dart';
 import '../services/api_service.dart';
 
 class AppProvider with ChangeNotifier {
@@ -30,6 +31,9 @@ class AppProvider with ChangeNotifier {
 
   List<ExitRecord> _exitRecords = [];
   List<ExitRecord> get exitRecords => _exitRecords;
+
+  List<OqcRejection> _oqcRejections = [];
+  List<OqcRejection> get oqcRejections => _oqcRejections;
 
   ExitRecordStats _stats = ExitRecordStats();
   ExitRecordStats get stats => _stats;
@@ -262,6 +266,26 @@ class AppProvider with ChangeNotifier {
       final start = startDate ?? DateTime(now.year, now.month, 1).toIso8601String().split('T')[0];
       final end = endDate ?? now.toIso8601String().split('T')[0];
       _stats = await ApiService.getStats(startDate: start, endDate: end);
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString();
+    }
+  }
+
+  // Cargar rechazos OQC
+  Future<void> loadOqcRejections({
+    String? status,
+    String? startDate,
+    String? endDate,
+    String? partNumber,
+  }) async {
+    try {
+      _oqcRejections = await ApiService.getOqcRejections(
+        status: status,
+        startDate: startDate,
+        endDate: endDate,
+        partNumber: partNumber,
+      );
       notifyListeners();
     } catch (e) {
       _errorMessage = e.toString();

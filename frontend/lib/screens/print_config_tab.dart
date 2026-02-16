@@ -176,7 +176,7 @@ class _PrintConfigTabState extends State<PrintConfigTab> {
                                 Column(
                                   children: [
                                     DropdownButtonFormField<String>(
-                                      value: _printers.any((p) =>
+                                      initialValue: _printers.any((p) =>
                                               p.name == _config.printerName)
                                           ? _config.printerName
                                           : null,
@@ -267,7 +267,7 @@ class _PrintConfigTabState extends State<PrintConfigTab> {
                               ),
                               const SizedBox(height: 16),
                               DropdownButtonFormField<PaperSize>(
-                                value: _config.paperSize,
+                                initialValue: _config.paperSize,
                                 decoration: InputDecoration(
                                   labelText: 'Tamaño de papel',
                                   prefixIcon: const Icon(Icons.straighten),

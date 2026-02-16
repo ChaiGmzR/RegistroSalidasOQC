@@ -8,6 +8,7 @@ router.get('/', async (req, res) => {
     const filters = {
       status: req.query.status,
       partNumberId: req.query.partNumberId,
+      partNumber: req.query.partNumber,
       startDate: req.query.startDate,
       endDate: req.query.endDate
     };

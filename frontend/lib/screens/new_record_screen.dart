@@ -1223,10 +1223,10 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                                       .symmetric(
                                                       horizontal: 8,
                                                       vertical: 6),
-                                                  decoration: BoxDecoration(
+                                                  decoration: const BoxDecoration(
                                                     color: AppTheme.darkHeader,
                                                     borderRadius:
-                                                        const BorderRadius.only(
+                                                        BorderRadius.only(
                                                       topLeft:
                                                           Radius.circular(8),
                                                       topRight:

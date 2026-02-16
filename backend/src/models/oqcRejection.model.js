@@ -50,6 +50,11 @@ class OqcRejectionModel {
       params.push(filters.partNumberId);
     }
 
+    if (filters.partNumber) {
+      query += ' AND pn.part_number LIKE ?';
+      params.push(`%${filters.partNumber}%`);
+    }
+
     if (filters.startDate) {
       query += ' AND DATE(r.rejection_date) >= ?';
       params.push(filters.startDate);

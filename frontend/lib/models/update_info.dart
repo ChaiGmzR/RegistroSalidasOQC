@@ -1,4 +1,5 @@
 /// Modelo para almacenar información de una actualización disponible
+library;
 import '../config/update_config.dart';
 
 class UpdateInfo {

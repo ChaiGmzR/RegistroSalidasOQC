@@ -392,6 +392,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Table(
                           border: TableBorder.all(
                             color: Colors.grey.shade300,
+                            width: 0.5,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           columnWidths: const {
