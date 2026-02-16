@@ -7,7 +7,7 @@ class UpdateConfig {
   static const String repoName = 'RegistroSalidasOQC';
 
   /// Versión actual de la aplicación (debe coincidir con pubspec.yaml)
-  static const String currentVersion = '1.0.8';
+  static const String currentVersion = '1.0.9';
 
   /// URL de la API de GitHub para obtener el último release
   static String get latestReleaseUrl =>
@@ -17,8 +17,8 @@ class UpdateConfig {
   static String get releasesUrl =>
       'https://github.com/$githubUser/$repoName/releases';
 
-  /// Nombre del archivo esperado en el release (instalador .exe)
-  static const String assetFilePattern = '.exe';
+  /// Nombre del archivo esperado en el release (ZIP con la app)
+  static const String assetFilePattern = '.zip';
 
   /// Verificar actualizaciones al iniciar la app
   static const bool checkOnStartup = true;
