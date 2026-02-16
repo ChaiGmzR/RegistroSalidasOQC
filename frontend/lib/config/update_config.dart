@@ -17,8 +17,8 @@ class UpdateConfig {
   static String get releasesUrl =>
       'https://github.com/$githubUser/$repoName/releases';
 
-  /// Nombre del archivo esperado en el release (ZIP con la app)
-  static const String assetFilePattern = '.zip';
+  /// Nombre del archivo esperado en el release (instalador .exe)
+  static const String assetFilePattern = '.exe';
 
   /// Verificar actualizaciones al iniciar la app
   static const bool checkOnStartup = true;

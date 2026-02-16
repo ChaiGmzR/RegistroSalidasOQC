@@ -135,28 +135,18 @@ class UpdateService {
     }
   }
 
-  /// Ejecuta el updater.bat para instalar el ZIP descargado
-  static Future<void> installUpdate(String zipPath) async {
+  /// Ejecuta el instalador descargado
+  static Future<void> installUpdate(String installerPath) async {
     try {
-      // Verificar que existe el ZIP descargado
-      if (!await File(zipPath).exists()) {
-        throw Exception('No se encontró el archivo descargado');
+      // Verificar que existe el instalador
+      if (!await File(installerPath).exists()) {
+        throw Exception('No se encontró el instalador descargado');
       }
 
-      // Obtener el directorio de la aplicación actual
-      final exePath = Platform.resolvedExecutable;
-      final appDir = File(exePath).parent.path;
-
-      // Buscar updater.bat en el directorio de la app
-      final updaterPath = '$appDir\\updater.bat';
-      if (!await File(updaterPath).exists()) {
-        throw Exception('No se encontró updater.bat en: $updaterPath');
-      }
-
-      // Ejecutar updater.bat con la ruta del ZIP y el directorio de la app
+      // Ejecutar el instalador .exe directamente
       await Process.start(
-        'cmd',
-        ['/c', updaterPath, zipPath, appDir],
+        installerPath,
+        [],
         mode: ProcessStartMode.detached,
       );
 
