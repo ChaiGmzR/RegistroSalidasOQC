@@ -143,6 +143,17 @@ class UpdateService {
         throw Exception('No se encontró el instalador descargado');
       }
 
+      // Detener el backend antes de iniciar el instalador
+      try {
+        // Matar el proceso del backend para liberar archivos
+        await Process.run('taskkill', ['/F', '/IM', 'oqc-backend.exe']);
+      } catch (_) {
+        // Ignorar errores si el backend no está corriendo
+      }
+
+      // Pequeña pausa para asegurar que los procesos se cierren
+      await Future.delayed(const Duration(milliseconds: 500));
+
       // Ejecutar el instalador .exe directamente
       await Process.start(
         installerPath,

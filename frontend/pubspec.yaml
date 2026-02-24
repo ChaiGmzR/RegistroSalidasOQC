@@ -1,7 +1,7 @@
 name: oqc_registro_salidas
 description: App de escritorio para registro de salidas OQC - Ilsan Electronics
 publish_to: 'none'
-version: 1.0.12+13
+version: 1.0.13+14
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

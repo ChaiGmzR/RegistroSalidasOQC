@@ -49,7 +49,7 @@ static const String currentVersion = '1.1.0';
 
 ### Paso 2: Compilar la Aplicación Flutter
 ```bash
-cd frontend
+cd frontend![alt text](image.png)
 flutter build windows --release
 ```
 

@@ -2,7 +2,7 @@
 ; Incluye backend Node.js integrado
 
 #define MyAppName "OQC Registro de Salidas"
-#define MyAppVersion "1.0.12"
+#define MyAppVersion "1.0.13"
 #define MyAppPublisher "Ilsan Electronics"
 #define MyAppExeName "oqc_registro_salidas.exe"
 #define MyAppURL "https://ilsan.com"
@@ -30,6 +30,10 @@ WizardStyle=modern
 ; Privilegios de administrador no requeridos para instalación por usuario
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+; Cerrar aplicaciones que estén usando los archivos
+CloseApplications=force
+CloseApplicationsFilter=*.exe
+RestartApplications=yes
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -60,6 +64,20 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// Cerrar el proceso del backend antes de instalar
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  // Matar cualquier instancia del backend que esté corriendo
+  Exec('taskkill', '/F /IM oqc-backend.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // Matar cualquier instancia de la aplicación principal
+  Exec('taskkill', '/F /IM oqc_registro_salidas.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // Pequeña pausa para asegurar que los procesos se cierren
+  Sleep(500);
+  Result := True;
+end;
+
 // Añadir regla de firewall para el backend (opcional, requiere admin)
 procedure CurStepChanged(CurStep: TSetupStep);
 var
