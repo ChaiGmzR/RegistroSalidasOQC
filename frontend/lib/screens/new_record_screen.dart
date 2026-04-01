@@ -8,6 +8,7 @@ import '../models/part_number.dart';
 import '../models/operator.dart';
 import '../services/api_service.dart';
 import '../services/print_service.dart';
+import '../services/sound_service.dart';
 import '../theme/app_theme.dart';
 
 // Modelo para caja escaneada
@@ -43,26 +44,34 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
   final _formKey = GlobalKey<FormState>();
 
   PartNumber? _selectedPartNumber;
-  String?
-      _extractedPartNumber; // Número de parte extraído del QR (sin validar en BD)
+  String? _extractedPartNumber; // Número de parte extraído del QR de PCB
   Operator? _selectedOperator;
 
   final _operatorController = TextEditingController();
-  final _partNumberController = TextEditingController();
   final _expectedQuantityController = TextEditingController();
   final _observationsController = TextEditingController();
+  final _pcbController = TextEditingController();
+  final _labelController = TextEditingController();
   final _scanController = TextEditingController();
 
   // FocusNodes para flujo de captura
   final _operatorFocusNode = FocusNode();
-  final _partNumberFocusNode = FocusNode();
   final _quantityFocusNode = FocusNode();
+  final _pcbFocusNode = FocusNode();
+  final _labelFocusNode = FocusNode();
   final _scanFocusNode = FocusNode();
 
   // Lista de cajas escaneadas
   final List<ScannedBox> _scannedBoxes = [];
   bool _isScanning = false;
   String? _scanError;
+
+  // Estado del flujo PCB → Etiqueta → Caja
+  String? _pcbError;
+  String? _labelError;
+  String? _scannedPcbPN; // PN extraído del escaneo PCB actual
+  String? _scannedLabelPN; // PN extraído de la etiqueta actual
+  int? _labelQty; // Cantidad extraída de la etiqueta actual
 
   DateTime _inspectionDate = DateTime.now();
   bool _qcPassed = true;
@@ -79,15 +88,134 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
   @override
   void dispose() {
     _operatorController.dispose();
-    _partNumberController.dispose();
     _expectedQuantityController.dispose();
     _observationsController.dispose();
+    _pcbController.dispose();
+    _labelController.dispose();
     _scanController.dispose();
     _operatorFocusNode.dispose();
-    _partNumberFocusNode.dispose();
     _quantityFocusNode.dispose();
+    _pcbFocusNode.dispose();
+    _labelFocusNode.dispose();
     _scanFocusNode.dispose();
     super.dispose();
+  }
+
+  String _normalizeScannerInput(String value) {
+    return value.replaceAll('\r', '').replaceAll('\n', '').trim();
+  }
+
+  PartNumber _resolvePartNumber(String partNumber) {
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    return provider.partNumbers.firstWhere(
+      (p) => p.partNumber.toLowerCase() == partNumber.toLowerCase(),
+      orElse: () =>
+          PartNumber(id: null, partNumber: partNumber, standardPack: 0),
+    );
+  }
+
+  void _setControllerText(TextEditingController controller, String value) {
+    controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  void _focusField(
+    FocusNode focusNode,
+    TextEditingController controller, {
+    bool selectAll = false,
+  }) {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+
+      focusNode.requestFocus();
+      final textLength = controller.text.length;
+      controller.selection = selectAll && textLength > 0
+          ? TextSelection(baseOffset: 0, extentOffset: textLength)
+          : TextSelection.collapsed(offset: textLength);
+    });
+  }
+
+  void _restoreCommittedPartNumberFromBoxes() {
+    String? committedPartNumber;
+
+    for (final box in _scannedBoxes) {
+      final candidate = box.partNumber?.trim();
+      if (candidate != null && candidate.isNotEmpty) {
+        committedPartNumber = candidate.toUpperCase();
+        break;
+      }
+    }
+
+    if (committedPartNumber == null) {
+      _selectedPartNumber = null;
+      _extractedPartNumber = null;
+      return;
+    }
+
+    _extractedPartNumber = committedPartNumber;
+    _selectedPartNumber = _resolvePartNumber(committedPartNumber);
+  }
+
+  String? _getCurrentBatchPartNumber() {
+    for (final box in _scannedBoxes) {
+      final candidate = box.partNumber?.trim();
+      if (candidate != null && candidate.isNotEmpty) {
+        return candidate.toUpperCase();
+      }
+    }
+
+    if (_scannedBoxes.isNotEmpty && _extractedPartNumber != null) {
+      return _extractedPartNumber!.trim().toUpperCase();
+    }
+
+    return null;
+  }
+
+  bool _hasBatchPartNumberConflict(String partNumber) {
+    final currentBatchPartNumber = _getCurrentBatchPartNumber();
+    if (currentBatchPartNumber == null) return false;
+    return currentBatchPartNumber != partNumber.toUpperCase();
+  }
+
+  void _clearBoxScanFlowState({
+    bool clearBoxes = false,
+    bool clearCommittedPartNumber = false,
+  }) {
+    _pcbController.clear();
+    _labelController.clear();
+    _scanController.clear();
+    _pcbError = null;
+    _labelError = null;
+    _scanError = null;
+    _scannedPcbPN = null;
+    _scannedLabelPN = null;
+    _labelQty = null;
+
+    if (clearBoxes) {
+      _scannedBoxes.clear();
+    }
+
+    if (clearCommittedPartNumber) {
+      _selectedPartNumber = null;
+      _extractedPartNumber = null;
+    }
+  }
+
+  void _resetBoxScanFlow({bool clearBoxes = false}) {
+    setState(() {
+      _clearBoxScanFlowState(
+        clearBoxes: clearBoxes,
+        clearCommittedPartNumber: clearBoxes || _scannedBoxes.isEmpty,
+      );
+
+      if (!clearBoxes && _scannedBoxes.isNotEmpty) {
+        _restoreCommittedPartNumberFromBoxes();
+      }
+    });
+
+    _focusField(_pcbFocusNode, _pcbController);
   }
 
   /// Extrae el número de parte de un código QR escaneado
@@ -126,23 +254,215 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     return trimmed.isNotEmpty ? trimmed : null;
   }
 
-  Future<void> _onScanSubmit(String value) async {
-    final boxCode = value.trim();
-    if (boxCode.isEmpty) return;
+  /// Extrae número de parte y cantidad de un código de etiqueta escaneado.
+  /// Usa regex para ser robusto ante diferentes separadores del scanner.
+  ///
+  /// Formato tipo Oven (ej: "3608'EBR43713608'Oven'20'TR0330?021"):
+  ///   - PN: busca patrón EBR seguido de dígitos
+  ///   - Qty: número después de "Oven" + cualquier separador
+  ///
+  /// Formato tipo P-No (ej: "P-NoEBR80757421LineR1Qty20Description..."):
+  ///   - PN: busca patrón EBR seguido de dígitos
+  ///   - Qty: número después de "Qty"
+  Map<String, dynamic>? _extractFromLabel(String labelCode) {
+    final trimmed = labelCode.trim();
+    if (trimmed.isEmpty) return null;
 
-    // Verificar si ya está escaneada
-    if (_scannedBoxes.any((box) => box.boxCode == boxCode)) {
+    final upper = trimmed.toUpperCase();
+
+    // 1. Extraer número de parte: buscar EBR seguido de dígitos (ej: EBR80757421, EBR43713608)
+    final pnMatch = RegExp(r'EBR\d+', caseSensitive: false).firstMatch(trimmed);
+    final partNumber = pnMatch?.group(0)?.toUpperCase();
+
+    // 2. Extraer cantidad
+    int? quantity;
+
+    // Intentar "Qty" seguido de cualquier separador(es) y luego dígitos
+    // Soporta: Qty20, Qty'20, Qty-20, Qty 20
+    final qtyMatch =
+        RegExp(r'Qty[^0-9]*(\d+)', caseSensitive: false).firstMatch(upper);
+    if (qtyMatch != null) {
+      quantity = int.tryParse(qtyMatch.group(1)!);
+    }
+
+    // Si no se encontró con Qty, intentar "Oven" seguido de separador(es) y dígitos
+    // Soporta: Oven'20, Oven-20, Oven 20
+    if (quantity == null) {
+      final ovenMatch =
+          RegExp(r'Oven[^0-9]*(\d+)', caseSensitive: false).firstMatch(upper);
+      if (ovenMatch != null) {
+        quantity = int.tryParse(ovenMatch.group(1)!);
+      }
+    }
+
+    if (partNumber != null && quantity != null) {
+      return {'partNumber': partNumber, 'quantity': quantity};
+    }
+
+    return null;
+  }
+
+  /// Maneja el escaneo del código PCB: extrae número de parte y avanza a etiqueta.
+  void _onPcbSubmit(String value) {
+    final pcbCode = _normalizeScannerInput(value);
+    if (pcbCode.isEmpty) return;
+
+    final extractedPN = _extractPartNumberFromQR(pcbCode);
+
+    if (extractedPN == null || extractedPN.isEmpty) {
+      SoundService.playError();
       setState(() {
-        _scanError = 'Esta caja ya fue escaneada';
+        _pcbError = 'No se pudo extraer número de parte del código PCB';
+        _setControllerText(_pcbController, pcbCode);
       });
-      _scanController.clear();
-      _scanFocusNode.requestFocus();
+      _focusField(_pcbFocusNode, _pcbController, selectAll: true);
+      return;
+    }
+
+    final upperPN = extractedPN.toUpperCase();
+
+    if (_hasBatchPartNumberConflict(upperPN)) {
+      final currentBatchPartNumber = _getCurrentBatchPartNumber();
+      SoundService.playError();
+      setState(() {
+        _pcbError =
+            'Este lote ya contiene cajas del PN $currentBatchPartNumber. No se puede mezclar con $upperPN';
+        _setControllerText(_pcbController, upperPN);
+      });
+      _focusField(_pcbFocusNode, _pcbController, selectAll: true);
       return;
     }
 
     setState(() {
+      _scannedPcbPN = upperPN;
+      _extractedPartNumber = upperPN;
+      _pcbError = null;
+      _labelError = null;
+      _scanError = null;
+      _scannedLabelPN = null;
+      _labelQty = null;
+      _selectedPartNumber = _resolvePartNumber(upperPN);
+      _setControllerText(_pcbController, upperPN);
+      _labelController.clear();
+      _scanController.clear();
+    });
+
+    _focusField(_labelFocusNode, _labelController, selectAll: true);
+  }
+
+  /// Maneja el escaneo de etiqueta: valida PN y qty contra PCB.
+  void _onLabelSubmit(String value) {
+    final labelCode = _normalizeScannerInput(value);
+    if (labelCode.isEmpty) return;
+
+    // Validar que se haya escaneado PCB primero
+    if (_scannedPcbPN == null) {
+      SoundService.playError();
+      setState(() {
+        _labelError = 'Primero escanee el código de PCB';
+        _setControllerText(_labelController, labelCode);
+      });
+      _focusField(_pcbFocusNode, _pcbController, selectAll: true);
+      return;
+    }
+
+    final labelData = _extractFromLabel(labelCode);
+
+    if (labelData == null) {
+      SoundService.playError();
+      setState(() {
+        _labelError = 'No se pudo leer la etiqueta. Formato no reconocido.';
+        _setControllerText(_labelController, labelCode);
+      });
+      _focusField(_labelFocusNode, _labelController, selectAll: true);
+      return;
+    }
+
+    final labelPN = (labelData['partNumber'] as String).toUpperCase();
+    final labelQty = labelData['quantity'] as int;
+
+    // Validar PN de etiqueta vs PN de PCB
+    if (labelPN.toUpperCase() != _scannedPcbPN!.toUpperCase()) {
+      SoundService.playError();
+      setState(() {
+        _labelError =
+            'PN de etiqueta ($labelPN) no coincide con PN de PCB ($_scannedPcbPN)';
+        _setControllerText(_labelController, labelPN);
+      });
+      _focusField(_labelFocusNode, _labelController, selectAll: true);
+      return;
+    }
+
+    if (_hasBatchPartNumberConflict(labelPN)) {
+      final currentBatchPartNumber = _getCurrentBatchPartNumber();
+      SoundService.playError();
+      setState(() {
+        _labelError =
+            'Este lote ya contiene cajas del PN $currentBatchPartNumber. No se puede mezclar con $labelPN';
+        _setControllerText(_labelController, labelPN);
+      });
+      _focusField(_labelFocusNode, _labelController, selectAll: true);
+      return;
+    }
+
+    // Todo OK: guardar cantidad y avanzar a escaneo de caja
+    SoundService.playSuccess();
+    setState(() {
+      _scannedLabelPN = labelPN;
+      _labelQty = labelQty;
+      _labelError = null;
+      _scanError = null;
+      _setControllerText(_labelController, labelPN);
+    });
+
+    _focusField(_scanFocusNode, _scanController, selectAll: true);
+  }
+
+  Future<void> _onScanSubmit(String value) async {
+    final boxCode = _normalizeScannerInput(value);
+    if (boxCode.isEmpty) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
+    // Validar que se hayan completado PCB y Etiqueta primero
+    if (_scannedPcbPN == null) {
+      SoundService.playError();
+      setState(() {
+        _scanError = 'Primero escanee el código de PCB';
+        _setControllerText(_scanController, boxCode);
+      });
+      _focusField(_pcbFocusNode, _pcbController, selectAll: true);
+      return;
+    }
+    if (_labelQty == null) {
+      SoundService.playError();
+      setState(() {
+        _scanError = 'Primero escanee la etiqueta';
+        _setControllerText(_scanController, boxCode);
+      });
+      _focusField(_labelFocusNode, _labelController, selectAll: true);
+      return;
+    }
+
+    // Verificar si ya está escaneada
+    if (_scannedBoxes.any((box) => box.boxCode == boxCode)) {
+      SoundService.playError();
+      setState(() {
+        _scanError = 'Esta caja ya fue escaneada';
+        _setControllerText(_scanController, boxCode);
+      });
+      _focusField(_scanFocusNode, _scanController, selectAll: true);
+      return;
+    }
+
+    var boxAdded = false;
+    FocusNode? nextFocusNode;
+    TextEditingController? nextController;
+    var selectAllOnFocus = false;
+
+    setState(() {
       _isScanning = true;
       _scanError = null;
+      _setControllerText(_scanController, boxCode);
     });
 
     try {
@@ -157,39 +477,42 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
 
         // Caso 1: Ya registrado como salida a almacén
         if (prevQcPassed && prevDestination == 'Almacen') {
-          // Si estamos en modo QC Aprobado (almacén), no permitir
           if (_qcPassed) {
+            SoundService.playError();
             setState(() {
               _scanError =
                   'Esta caja ya fue registrada como salida a almacén (Folio: $prevFolio)';
             });
-            _scanController.clear();
-            _scanFocusNode.requestFocus();
+            nextFocusNode = _scanFocusNode;
+            nextController = _scanController;
+            selectAllOnFocus = true;
             return;
           }
-          // Si estamos en modo rechazo, permitir pero marcar como "rechazo de almacén"
-          // Este boxCode no podrá ser liberado después
         }
 
         // Caso 2: Ya registrado como contención y aún pendiente
         if (!prevQcPassed && prevStatus == 'pending') {
+          SoundService.playError();
           setState(() {
             _scanError =
                 'Esta caja está en contención pendiente de liberar (Folio: $prevFolio)';
           });
-          _scanController.clear();
-          _scanFocusNode.requestFocus();
+          nextFocusNode = _scanFocusNode;
+          nextController = _scanController;
+          selectAllOnFocus = true;
           return;
         }
 
         // Caso 3: Ya registrado como contención (mismo destino que intentamos)
         if (!prevQcPassed && !_qcPassed) {
+          SoundService.playError();
           setState(() {
             _scanError =
                 'Esta caja ya fue registrada como rechazo (Folio: $prevFolio)';
           });
-          _scanController.clear();
-          _scanFocusNode.requestFocus();
+          nextFocusNode = _scanFocusNode;
+          nextController = _scanController;
+          selectAllOnFocus = true;
           return;
         }
       }
@@ -198,14 +521,60 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
       final result = await ApiService.getBoxQuantity(boxCode);
 
       if (result['success'] == true) {
-        // El part number viene extraído del serial en el backend
-        final boxPartNumber = result['partNumber'] as String?;
+        final boxPartNumber = (result['partNumber'] as String?)?.toUpperCase();
+        final boxQty = result['quantity'] as int;
 
-        // Determinar si es un rechazo de almacén (previamente registrado en almacén)
+        // Determinar si es un rechazo de almacén
         final wasInAlmacen = validation['exists'] == true &&
             (validation['qcPassed'] as bool? ?? true) &&
             validation['destination'] == 'Almacen';
 
+        // Validar PN de caja vs PN de PCB
+        if (boxPartNumber != null &&
+            _scannedPcbPN != null &&
+            boxPartNumber.toUpperCase() != _scannedPcbPN!.toUpperCase()) {
+          SoundService.playError();
+          setState(() {
+            _scanError =
+                'PN de caja ($boxPartNumber) no coincide con PN de PCB ($_scannedPcbPN)';
+          });
+          nextFocusNode = _scanFocusNode;
+          nextController = _scanController;
+          selectAllOnFocus = true;
+          return;
+        }
+
+        if (boxPartNumber != null &&
+            _hasBatchPartNumberConflict(boxPartNumber)) {
+          final currentBatchPartNumber = _getCurrentBatchPartNumber();
+          SoundService.playError();
+          setState(() {
+            _scanError =
+                'Este lote ya contiene cajas del PN $currentBatchPartNumber. No se puede agregar una caja del PN $boxPartNumber';
+          });
+          nextFocusNode = _scanFocusNode;
+          nextController = _scanController;
+          selectAllOnFocus = true;
+          return;
+        }
+
+        // Validar cantidad de caja vs cantidad de etiqueta
+        if (_labelQty != null && boxQty != _labelQty) {
+          SoundService.playError();
+          setState(() {
+            _scanError =
+                'Cantidad de caja ($boxQty) no coincide con cantidad de etiqueta ($_labelQty)';
+          });
+          nextFocusNode = _scanFocusNode;
+          nextController = _scanController;
+          selectAllOnFocus = true;
+          return;
+        }
+
+        // ¡Todo validado! Agregar caja a la lista
+        SoundService.playSuccess();
+        final committedPartNumber =
+            (boxPartNumber ?? _scannedPcbPN)?.toUpperCase();
         setState(() {
           _scannedBoxes.add(ScannedBox(
             boxCode: result['boxCode'],
@@ -217,11 +586,17 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
             previousFolio: wasInAlmacen ? validation['folio'] : null,
           ));
           _scanError = null;
+          if (committedPartNumber != null) {
+            _extractedPartNumber = committedPartNumber;
+            _selectedPartNumber = _resolvePartNumber(committedPartNumber);
+          }
+          _clearBoxScanFlowState();
         });
+        boxAdded = true;
 
         // Mostrar advertencia si es rechazo de almacén
         if (wasInAlmacen && !_qcPassed) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger?.showSnackBar(
             SnackBar(
               content: Text(
                   '⚠️ Esta caja fue liberada previamente a almacén (${validation['folio']}). Es un rechazo de almacén y deberá volver a escanearse.'),
@@ -231,31 +606,52 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
           );
         }
       } else {
+        SoundService.playError();
         setState(() {
           _scanError = result['error'] ?? 'Código no encontrado';
         });
+        nextFocusNode = _scanFocusNode;
+        nextController = _scanController;
+        selectAllOnFocus = true;
       }
     } catch (e) {
+      SoundService.playError();
       setState(() {
         _scanError = 'Error de conexión al validar caja';
       });
+      nextFocusNode = _scanFocusNode;
+      nextController = _scanController;
+      selectAllOnFocus = true;
     } finally {
-      setState(() => _isScanning = false);
-      _scanController.clear();
+      if (mounted) {
+        setState(() => _isScanning = false);
 
-      // Regresar focus al campo de escaneo después de un pequeño delay
-      // para asegurar que el setState se complete primero
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          _scanFocusNode.requestFocus();
+        if (boxAdded) {
+          _focusField(_pcbFocusNode, _pcbController);
+        } else if (nextFocusNode != null && nextController != null) {
+          _focusField(
+            nextFocusNode,
+            nextController,
+            selectAll: selectAllOnFocus,
+          );
         }
-      });
+      }
     }
   }
 
   void _removeScannedBox(int index) {
     setState(() {
       _scannedBoxes.removeAt(index);
+      if (_scannedBoxes.isEmpty) {
+        _extractedPartNumber = _scannedPcbPN;
+        if (_extractedPartNumber != null) {
+          _selectedPartNumber = _resolvePartNumber(_extractedPartNumber!);
+        } else {
+          _selectedPartNumber = null;
+        }
+      } else {
+        _restoreCommittedPartNumberFromBoxes();
+      }
     });
   }
 
@@ -453,6 +849,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
         context.read<AppProvider>().loadExitRecords();
         context.read<AppProvider>().loadStats();
 
+        SoundService.playSuccess();
         _showSuccessDialogWithFolio(folio, recordsCreated,
             rejectionFolio: rejectionFolio, printData: printData);
         _resetForm();
@@ -830,17 +1227,16 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
   void _resetForm() {
     setState(() {
       _selectedOperator = null;
-      _selectedPartNumber = null;
-      _extractedPartNumber = null;
       _operatorController.clear();
-      _partNumberController.clear();
       _expectedQuantityController.clear();
       _observationsController.clear();
-      _scanController.clear();
-      _scannedBoxes.clear();
-      _scanError = null;
+      _clearBoxScanFlowState(
+        clearBoxes: true,
+        clearCommittedPartNumber: true,
+      );
       _inspectionDate = DateTime.now();
       _qcPassed = true;
+      _isScanning = false;
     });
   }
 
@@ -885,7 +1281,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Operador y Número de parte en fila
+                            // Operador, Cantidad y Fecha en una fila
                             Row(
                               children: [
                                 Expanded(
@@ -909,7 +1305,6 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                           : null,
                                     ),
                                     onChanged: (value) {
-                                      // Buscar operador por employeeId
                                       final op = provider.operators.firstWhere(
                                         (o) => o.employeeId == value.trim(),
                                         orElse: () => Operator(
@@ -921,8 +1316,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       });
                                     },
                                     onFieldSubmitted: (_) {
-                                      // Al presionar Enter, ir al campo Número de Parte
-                                      _partNumberFocusNode.requestFocus();
+                                      _quantityFocusNode.requestFocus();
                                     },
                                     textInputAction: TextInputAction.next,
                                     validator: (value) {
@@ -939,111 +1333,6 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: TextFormField(
-                                    controller: _partNumberController,
-                                    focusNode: _partNumberFocusNode,
-                                    decoration: InputDecoration(
-                                      labelText: 'Número de Parte *',
-                                      prefixIcon: const Icon(Icons.qr_code),
-                                      isDense: true,
-                                      hintText: 'Escanear QR de pieza',
-                                      suffixIcon: _extractedPartNumber != null
-                                          ? const Tooltip(
-                                              message:
-                                                  'Número de parte extraído',
-                                              child: Icon(Icons.check_circle,
-                                                  color: AppTheme.successColor,
-                                                  size: 20),
-                                            )
-                                          : null,
-                                    ),
-                                    onChanged: (value) {
-                                      // Solo limpiar el estado mientras se escribe
-                                      setState(() {
-                                        _extractedPartNumber = null;
-                                        _selectedPartNumber = null;
-                                      });
-                                    },
-                                    onFieldSubmitted: (value) {
-                                      // Extraer número de parte del QR escaneado
-                                      final extractedPN =
-                                          _extractPartNumberFromQR(value);
-
-                                      if (extractedPN != null) {
-                                        // Actualizar el campo con el PN extraído (en mayúsculas)
-                                        final upperPN =
-                                            extractedPN.toUpperCase();
-                                        _partNumberController.text = upperPN;
-
-                                        // Guardar el PN extraído
-                                        setState(() {
-                                          _extractedPartNumber = upperPN;
-
-                                          // Buscar en BD solo para obtener el modelo (no es obligatorio que exista)
-                                          // Comparación case-insensitive
-                                          final pn =
-                                              provider.partNumbers.firstWhere(
-                                            (p) =>
-                                                p.partNumber.toLowerCase() ==
-                                                upperPN.toLowerCase(),
-                                            orElse: () => PartNumber(
-                                              id: null,
-                                              partNumber: upperPN,
-                                              standardPack: 0,
-                                            ),
-                                          );
-                                          _selectedPartNumber = pn;
-                                        });
-                                      } else {
-                                        // Si no se pudo extraer, usar el valor como está
-                                        final upperValue =
-                                            value.trim().toUpperCase();
-                                        _partNumberController.text = upperValue;
-
-                                        setState(() {
-                                          _extractedPartNumber =
-                                              upperValue.isNotEmpty
-                                                  ? upperValue
-                                                  : null;
-
-                                          final pn =
-                                              provider.partNumbers.firstWhere(
-                                            (p) =>
-                                                p.partNumber.toLowerCase() ==
-                                                upperValue.toLowerCase(),
-                                            orElse: () => PartNumber(
-                                              id: null,
-                                              partNumber: upperValue,
-                                              standardPack: 0,
-                                            ),
-                                          );
-                                          _selectedPartNumber = pn;
-                                        });
-                                      }
-
-                                      // Ir al campo Cantidad
-                                      _quantityFocusNode.requestFocus();
-                                    },
-                                    textInputAction: TextInputAction.next,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Ingrese el número de parte';
-                                      }
-                                      if (_extractedPartNumber == null) {
-                                        return 'Número de parte inválido';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Cantidad y Fecha en fila
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
                                     controller: _expectedQuantityController,
                                     focusNode: _quantityFocusNode,
                                     decoration: const InputDecoration(
@@ -1057,8 +1346,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                       FilteringTextInputFormatter.digitsOnly,
                                     ],
                                     onFieldSubmitted: (_) {
-                                      // Al presionar Enter, ir al campo de escaneo de cajas
-                                      _scanFocusNode.requestFocus();
+                                      _pcbFocusNode.requestFocus();
                                     },
                                     textInputAction: TextInputAction.next,
                                     validator: (value) {
@@ -1125,36 +1413,139 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                             ),
                                           ],
                                         ),
-                                        if (_scannedBoxes.isNotEmpty)
-                                          TextButton.icon(
-                                            onPressed: () {
-                                              setState(() {
-                                                _scannedBoxes.clear();
-                                              });
-                                            },
-                                            icon: const Icon(Icons.clear_all,
-                                                size: 16),
-                                            label: const Text('Limpiar',
-                                                style: TextStyle(fontSize: 12)),
-                                            style: TextButton.styleFrom(
-                                              foregroundColor:
-                                                  AppTheme.errorColor,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 8),
+                                        Wrap(
+                                          spacing: 4,
+                                          children: [
+                                            TextButton.icon(
+                                              onPressed: _isScanning
+                                                  ? null
+                                                  : () => _resetBoxScanFlow(),
+                                              icon: const Icon(
+                                                Icons.restart_alt,
+                                                size: 16,
+                                              ),
+                                              label: const Text(
+                                                'Reiniciar flujo',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor:
+                                                    AppTheme.primaryColor,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                            if (_scannedBoxes.isNotEmpty)
+                                              TextButton.icon(
+                                                onPressed: _isScanning
+                                                    ? null
+                                                    : () => _resetBoxScanFlow(
+                                                        clearBoxes: true),
+                                                icon: const Icon(
+                                                  Icons.clear_all,
+                                                  size: 16,
+                                                ),
+                                                label: const Text(
+                                                  'Limpiar cajas',
+                                                  style:
+                                                      TextStyle(fontSize: 12),
+                                                ),
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      AppTheme.errorColor,
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 8,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ],
                                     ),
                                     const SizedBox(height: 10),
 
-                                    // Campo de escaneo
+                                    // Campo 1: Escanear código de PCB
+                                    TextField(
+                                      controller: _pcbController,
+                                      focusNode: _pcbFocusNode,
+                                      decoration: InputDecoration(
+                                        labelText: 'Escanear código de PCB',
+                                        isDense: true,
+                                        prefixIcon:
+                                            const Icon(Icons.qr_code, size: 20),
+                                        errorText: _pcbError,
+                                        suffixIcon: _scannedPcbPN != null
+                                            ? Tooltip(
+                                                message: 'PN: $_scannedPcbPN',
+                                                child: const Icon(
+                                                    Icons.check_circle,
+                                                    color:
+                                                        AppTheme.successColor,
+                                                    size: 20),
+                                              )
+                                            : IconButton(
+                                                icon: const Icon(
+                                                    Icons.keyboard_return,
+                                                    size: 20),
+                                                onPressed: () => _onPcbSubmit(
+                                                    _pcbController.text),
+                                                tooltip: 'Validar PCB',
+                                              ),
+                                      ),
+                                      enabled: !_isScanning,
+                                      textInputAction: TextInputAction.done,
+                                      onSubmitted: _onPcbSubmit,
+                                      autofocus: false,
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // Campo 2: Escanear código de Etiqueta
+                                    TextField(
+                                      controller: _labelController,
+                                      focusNode: _labelFocusNode,
+                                      decoration: InputDecoration(
+                                        labelText:
+                                            'Escanear código de Etiqueta',
+                                        isDense: true,
+                                        prefixIcon:
+                                            const Icon(Icons.qr_code, size: 20),
+                                        errorText: _labelError,
+                                        suffixIcon: _labelQty != null
+                                            ? Tooltip(
+                                                message:
+                                                    'PN: ${_scannedLabelPN ?? "-"} | Qty: $_labelQty',
+                                                child: const Icon(
+                                                    Icons.check_circle,
+                                                    color:
+                                                        AppTheme.successColor,
+                                                    size: 20),
+                                              )
+                                            : IconButton(
+                                                icon: const Icon(
+                                                    Icons.keyboard_return,
+                                                    size: 20),
+                                                onPressed: () => _onLabelSubmit(
+                                                    _labelController.text),
+                                                tooltip: 'Validar etiqueta',
+                                              ),
+                                      ),
+                                      enabled: !_isScanning,
+                                      maxLines: 1,
+                                      textInputAction: TextInputAction.done,
+                                      onSubmitted: _onLabelSubmit,
+                                      autofocus: false,
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // Campo 3: Escanear código de Caja
                                     TextField(
                                       controller: _scanController,
                                       focusNode: _scanFocusNode,
                                       decoration: InputDecoration(
-                                        labelText: 'Escanear código de caja',
-                                        hintText: 'Ej: LGB922501026566',
+                                        labelText: 'Escanear código de Caja',
                                         isDense: true,
                                         prefixIcon: _isScanning
                                             ? const Padding(
@@ -1180,6 +1571,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                         ),
                                       ),
                                       enabled: !_isScanning,
+                                      textInputAction: TextInputAction.done,
                                       onSubmitted: _onScanSubmit,
                                       autofocus: false,
                                     ),
@@ -1223,7 +1615,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
                                                       .symmetric(
                                                       horizontal: 8,
                                                       vertical: 6),
-                                                  decoration: const BoxDecoration(
+                                                  decoration:
+                                                      const BoxDecoration(
                                                     color: AppTheme.darkHeader,
                                                     borderRadius:
                                                         BorderRadius.only(
