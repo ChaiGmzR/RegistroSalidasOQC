@@ -35,7 +35,8 @@ class _PartNumbersTabState extends State<PartNumbersTab> {
   Future<void> _loadPartNumbers() async {
     setState(() => _isLoading = true);
     try {
-      final partNumbers = await ApiService.getPartNumbers();
+      final partNumbers =
+          await ApiService.getPartNumbers(includeInactive: true);
       setState(() {
         _partNumbers = partNumbers;
         _filterPartNumbers();
@@ -257,7 +258,7 @@ class _PartNumbersTabState extends State<PartNumbersTab> {
         title: const Text('Confirmar eliminación'),
         content: Text(
           '¿Estás seguro de que deseas eliminar el número de parte "${partNumber.partNumber}"?\n\n'
-          'Esta acción no se puede deshacer.',
+          'Se marcará como inactivo y podrá reactivarse editándolo o creándolo nuevamente.',
         ),
         actions: [
           TextButton(

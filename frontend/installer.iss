@@ -2,7 +2,7 @@
 ; Incluye backend Node.js integrado
 
 #define MyAppName "OQC Registro de Salidas"
-#define MyAppVersion "1.0.15"
+#define MyAppVersion "1.0.16"
 #define MyAppPublisher "Ilsan Electronics"
 #define MyAppExeName "oqc_registro_salidas.exe"
 #define MyAppURL "https://ilsan.com"

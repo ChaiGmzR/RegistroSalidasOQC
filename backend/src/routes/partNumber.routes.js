@@ -5,7 +5,8 @@ const PartNumberModel = require('../models/partNumber.model');
 // Obtener todos los números de parte
 router.get('/', async (req, res) => {
   try {
-    const partNumbers = await PartNumberModel.getAll();
+    const includeInactive = req.query.includeInactive === 'true';
+    const partNumbers = await PartNumberModel.getAll({ includeInactive });
     res.json({ success: true, data: partNumbers });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -16,7 +17,8 @@ router.get('/', async (req, res) => {
 router.get('/search', async (req, res) => {
   try {
     const { q } = req.query;
-    const partNumbers = await PartNumberModel.search(q || '');
+    const includeInactive = req.query.includeInactive === 'true';
+    const partNumbers = await PartNumberModel.search(q || '', { includeInactive });
     res.json({ success: true, data: partNumbers });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -43,7 +45,7 @@ router.post('/', async (req, res) => {
     const partNumber = await PartNumberModel.getById(id);
     res.status(201).json({ success: true, data: partNumber });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'ER_DUP_ENTRY' || error.code === 'PART_NUMBER_EXISTS') {
       return res.status(400).json({ success: false, error: 'El número de parte ya existe' });
     }
     res.status(500).json({ success: false, error: error.message });

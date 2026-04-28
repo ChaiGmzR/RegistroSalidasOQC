@@ -30,12 +30,17 @@ class ApiService {
   }
 
   // === PART NUMBERS ===
-  static Future<List<PartNumber>> getPartNumbers() async {
+  static Future<List<PartNumber>> getPartNumbers({
+    bool includeInactive = false,
+  }) async {
     try {
-      _log.debug('API', 'GET ${ApiConfig.partNumbers}');
+      final uri = Uri.parse(ApiConfig.partNumbers).replace(
+        queryParameters: includeInactive ? {'includeInactive': 'true'} : null,
+      );
+      _log.debug('API', 'GET $uri');
       final response = await http
           .get(
-            Uri.parse(ApiConfig.partNumbers),
+            uri,
           )
           .timeout(ApiConfig.connectionTimeout);
 

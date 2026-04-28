@@ -174,15 +174,15 @@ class ExitRecordStats {
 
   factory ExitRecordStats.fromJson(Map<String, dynamic> json) {
     // MySQL puede devolver COUNT/SUM como String o null
-    int _toInt(dynamic val) => val == null ? 0 : (val is int ? val : int.tryParse(val.toString()) ?? 0);
+    int toInt(dynamic val) => val == null ? 0 : (val is int ? val : int.tryParse(val.toString()) ?? 0);
     
     return ExitRecordStats(
-      totalRecords: _toInt(json['total_records']),
-      totalQuantity: _toInt(json['total_quantity']),
-      uniqueParts: _toInt(json['unique_parts']),
-      released: _toInt(json['released']),
-      pending: _toInt(json['pending']),
-      shipped: _toInt(json['shipped']),
+      totalRecords: toInt(json['total_records']),
+      totalQuantity: toInt(json['total_quantity']),
+      uniqueParts: toInt(json['unique_parts']),
+      released: toInt(json['released']),
+      pending: toInt(json['pending']),
+      shipped: toInt(json['shipped']),
     );
   }
 }

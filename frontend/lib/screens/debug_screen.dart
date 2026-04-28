@@ -217,7 +217,7 @@ class _DebugScreenState extends State<DebugScreen> {
                         ),
                       ],
                     ),
-                    Text(
+                    const Text(
                       'Revisa los logs de la aplicación para diagnosticar problemas',
                       style: TextStyle(
                         color: AppTheme.textMuted,
@@ -334,11 +334,11 @@ class _DebugScreenState extends State<DebugScreen> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppTheme.lightBorder),
+                borderSide: const BorderSide(color: AppTheme.lightBorder),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppTheme.lightBorder),
+                borderSide: const BorderSide(color: AppTheme.lightBorder),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -392,7 +392,7 @@ class _DebugScreenState extends State<DebugScreen> {
   Widget _buildFilters(List<String> sources) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppTheme.cardBackground,
         border: Border(
           bottom: BorderSide(color: AppTheme.lightBorder),
@@ -670,7 +670,7 @@ class _DebugScreenState extends State<DebugScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppTheme.cardBackground,
         border: Border(
           top: BorderSide(color: AppTheme.lightBorder),
