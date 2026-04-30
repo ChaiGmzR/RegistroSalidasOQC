@@ -38,22 +38,25 @@ class BoxScanModel {
 
   /**
    * Obtener cantidad de piezas por código de caja
-   * Cuenta las veces que aparece el box_code en la tabla box_scans
+   * Cuenta seriales únicos para que reintentos del importador no inflen la caja
    * También obtiene un serial de muestra para extraer el part number
    */
   static async getQuantityByBoxCode(boxCode) {
     const [rows] = await pool.query(
       `SELECT 
         box_code,
-        COUNT(*) as quantity,
+        COUNT(DISTINCT serial) as quantity,
+        COUNT(*) as raw_quantity,
         MIN(first_scan) as first_scan,
         MAX(last_scan) as last_scan,
         folder_date,
-        (SELECT serial FROM box_scans WHERE box_code = ? LIMIT 1) as sample_serial
+        MIN(serial) as sample_serial
       FROM box_scans 
       WHERE box_code = ?
-      GROUP BY box_code, folder_date`,
-      [boxCode, boxCode]
+      GROUP BY box_code, folder_date
+      ORDER BY MAX(last_scan) DESC
+      LIMIT 1`,
+      [boxCode]
     );
     
     if (rows[0]) {
@@ -85,7 +88,8 @@ class BoxScanModel {
     const [rows] = await pool.query(
       `SELECT 
         box_code,
-        COUNT(*) as quantity,
+        COUNT(DISTINCT serial) as quantity,
+        COUNT(*) as raw_quantity,
         MIN(first_scan) as first_scan,
         MAX(last_scan) as last_scan,
         folder_date
