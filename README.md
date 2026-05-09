@@ -132,11 +132,11 @@ flutter run -d windows
 ### Variables de Entorno (backend/.env)
 
 ```env
-DB_HOST=4.236.163.153
+DB_HOST=192.168.1.10
 DB_PORT=3306
-DB_USER=mes_admin
-DB_PASSWORD=MesIlsan2026Prod
-DB_NAME=mes_production
+DB_USER=<usuario_mysql>
+DB_PASSWORD=<password_mysql>
+DB_NAME=<base_de_datos>
 PORT=3000
 ```
 

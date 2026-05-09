@@ -1,6 +1,7 @@
 # Backend Node.js
 backend/node_modules/
 backend/.env
+backend/dist/.env
 backend/logs/
 backend/*.log
 
