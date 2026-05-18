@@ -219,12 +219,18 @@ class ExitRecordModel {
     try {
       await connection.beginTransaction();
 
+      const [operatorRows] = await connection.query(
+        'SELECT employee_id FROM operators WHERE id = ? LIMIT 1',
+        [operator_id]
+      );
+      const employeeId = data.employee_id || operatorRows[0]?.employee_id || null;
+
       const [result] = await connection.query(
         `INSERT INTO exit_records 
-         (folio, part_number_id, esd_box_id, operator_id, quantity,
+         (folio, part_number_id, esd_box_id, operator_id, employee_id, quantity,
           inspection_date, exit_date, destination, observations, qc_passed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [folio, part_number_id, esd_box_id, operator_id, quantity,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [folio, part_number_id, esd_box_id, operator_id, employeeId, quantity,
          inspection_date, exit_date || new Date(), destination || 'Almacen', 
          observations, qc_passed !== false]
       );
@@ -236,7 +242,7 @@ class ExitRecordModel {
           folio,
           part_number_id,
           operator_id,
-          employee_id: data.employee_id || null,
+          employee_id: employeeId,
           destination: destination || 'Almacen',
           qc_passed: qc_passed !== false,
           status: 'pending',

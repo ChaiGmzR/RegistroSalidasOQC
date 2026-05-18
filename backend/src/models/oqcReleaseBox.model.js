@@ -147,6 +147,7 @@ class OqcReleaseBoxModel {
     const status = options.status || this.mapStatus(exitRecord);
     const releasedAt = exitRecord.exit_date || new Date();
     let partNumber = exitRecord.part_number || null;
+    let employeeId = exitRecord.employee_id || null;
 
     if (source !== 'migration') {
       const repeatedBox = normalizedBoxes.find((box, index) =>
@@ -165,6 +166,14 @@ class OqcReleaseBoxModel {
         [exitRecord.part_number_id]
       );
       partNumber = partRows[0]?.part_number || null;
+    }
+
+    if (!employeeId && exitRecord.operator_id) {
+      const [operatorRows] = await queryable.query(
+        'SELECT employee_id FROM operators WHERE id = ? LIMIT 1',
+        [exitRecord.operator_id]
+      );
+      employeeId = operatorRows[0]?.employee_id || null;
     }
 
     if (source !== 'migration') {
@@ -202,7 +211,7 @@ class OqcReleaseBoxModel {
       status,
       source,
       exitRecord.operator_id,
-      exitRecord.employee_id || null,
+      employeeId,
       releasedAt,
     ]);
 
@@ -240,10 +249,13 @@ class OqcReleaseBoxModel {
   static async migrateFromExitRecords(queryable) {
     const [records] = await queryable.query(
       `SELECT er.id, er.folio, er.part_number_id, pn.part_number,
-              er.operator_id, er.employee_id, er.quantity, er.destination,
+              er.operator_id,
+              COALESCE(NULLIF(er.employee_id, ''), op.employee_id) as employee_id,
+              er.quantity, er.destination,
               er.status, er.qc_passed, er.exit_date, er.observations
        FROM exit_records er
        JOIN part_numbers pn ON er.part_number_id = pn.id
+       LEFT JOIN operators op ON er.operator_id = op.id
        WHERE er.observations LIKE '%Cajas:%'`
     );
 
@@ -262,6 +274,27 @@ class OqcReleaseBoxModel {
     }
 
     return { recordsWithBoxes, boxesMigrated };
+  }
+
+  static async backfillEmployeeIds(queryable) {
+    const [exitRecordsResult] = await queryable.query(`
+      UPDATE exit_records er
+      JOIN operators op ON er.operator_id = op.id
+      SET er.employee_id = op.employee_id
+      WHERE er.employee_id IS NULL OR er.employee_id = ''
+    `);
+
+    const [releaseBoxesResult] = await queryable.query(`
+      UPDATE oqc_release_boxes rb
+      JOIN operators op ON rb.released_by = op.id
+      SET rb.employee_id = op.employee_id
+      WHERE rb.employee_id IS NULL OR rb.employee_id = ''
+    `);
+
+    return {
+      exitRecordsUpdated: exitRecordsResult.affectedRows || 0,
+      releaseBoxesUpdated: releaseBoxesResult.affectedRows || 0,
+    };
   }
 }
 

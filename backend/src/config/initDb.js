@@ -330,6 +330,12 @@ const initDatabase = async () => {
         `✅ Migración oqc_release_boxes: ${migrationSummary.boxesMigrated} cajas procesadas ` +
         `desde ${migrationSummary.recordsWithBoxes} folios históricos`
       );
+
+      const employeeBackfill = await OqcReleaseBoxModel.backfillEmployeeIds(connection);
+      console.log(
+        `✅ Employee ID OQC actualizado: ${employeeBackfill.exitRecordsUpdated} registros OQC, ` +
+        `${employeeBackfill.releaseBoxesUpdated} cajas liberadas`
+      );
     } catch (err) {
       console.log('⚠️ Error migrando cajas históricas de OQC:', err.message);
     }
