@@ -1,4 +1,5 @@
 const pool = require('./database');
+const OqcReleaseBoxModel = require('../models/oqcReleaseBox.model');
 
 const initDatabase = async () => {
   try {
@@ -289,6 +290,48 @@ const initDatabase = async () => {
       }
     } catch (err) {
       console.log('⚠️ Error en migración employee_id para oqc_rejections:', err.message);
+    }
+
+    // Tabla normalizada de cajas liberadas por OQC hacia almacén/embarques.
+    // exit_records se mantiene como encabezado del folio; esta tabla conserva el detalle por caja.
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS oqc_release_boxes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        exit_record_id INT NOT NULL,
+        oqc_folio VARCHAR(20) NOT NULL,
+        box_code VARCHAR(100) NOT NULL,
+        part_number_id INT NOT NULL,
+        part_number VARCHAR(50),
+        quantity INT NOT NULL DEFAULT 0,
+        destination VARCHAR(100) DEFAULT 'Almacen',
+        qc_passed BOOLEAN DEFAULT TRUE,
+        status ENUM('released', 'received_shipping', 'cancelled', 'rejected', 'exception') DEFAULT 'released',
+        source ENUM('batch', 'migration', 'manual') DEFAULT 'batch',
+        released_by INT NOT NULL,
+        employee_id VARCHAR(20),
+        released_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (exit_record_id) REFERENCES exit_records(id) ON DELETE CASCADE,
+        FOREIGN KEY (part_number_id) REFERENCES part_numbers(id),
+        FOREIGN KEY (released_by) REFERENCES operators(id),
+        UNIQUE KEY uq_oqc_release_exit_box (exit_record_id, box_code),
+        INDEX idx_oqc_release_box_code (box_code),
+        INDEX idx_oqc_release_folio (oqc_folio),
+        INDEX idx_oqc_release_part_number (part_number),
+        INDEX idx_oqc_release_status (status),
+        INDEX idx_oqc_release_released_at (released_at)
+      )
+    `);
+
+    try {
+      const migrationSummary = await OqcReleaseBoxModel.migrateFromExitRecords(connection);
+      console.log(
+        `✅ Migración oqc_release_boxes: ${migrationSummary.boxesMigrated} cajas procesadas ` +
+        `desde ${migrationSummary.recordsWithBoxes} folios históricos`
+      );
+    } catch (err) {
+      console.log('⚠️ Error migrando cajas históricas de OQC:', err.message);
     }
 
     connection.release();

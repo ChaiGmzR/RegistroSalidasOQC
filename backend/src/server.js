@@ -11,6 +11,7 @@ const operatorRoutes = require('./routes/operator.routes');
 const exitRecordRoutes = require('./routes/exitRecord.routes');
 const boxScanRoutes = require('./routes/boxScan.routes');
 const oqcRejectionRoutes = require('./routes/oqcRejection.routes');
+const oqcReleaseBoxRoutes = require('./routes/oqcReleaseBox.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,7 @@ app.use('/api/operators', operatorRoutes);
 app.use('/api/exit-records', exitRecordRoutes);
 app.use('/api/box-scans', boxScanRoutes);
 app.use('/api/oqc-rejections', oqcRejectionRoutes);
+app.use('/api/oqc-release-boxes', oqcReleaseBoxRoutes);
 
 // Ruta de estado (incluye verificación de BD)
 app.get('/api/health', async (req, res) => {
@@ -61,6 +63,7 @@ app.get('/', (req, res) => {
       esdBoxes: '/api/esd-boxes',
       operators: '/api/operators',
       exitRecords: '/api/exit-records',
+      oqcReleaseBoxes: '/api/oqc-release-boxes',
       health: '/api/health'
     }
   });
@@ -94,6 +97,7 @@ const startServer = async () => {
       console.log('   - /api/exit-records');
       console.log('   - /api/box-scans');
       console.log('   - /api/oqc-rejections');
+      console.log('   - /api/oqc-release-boxes');
       console.log('   - /api/health');
     });
 

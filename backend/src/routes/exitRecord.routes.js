@@ -136,6 +136,7 @@ router.post('/batch', async (req, res) => {
       destination,
       observations: fullObservations,
       qc_passed,
+      boxes,
     });
 
     res.status(201).json({
@@ -145,7 +146,12 @@ router.post('/batch', async (req, res) => {
       recordId: id,
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    const statusCode = error.code === 'BOX_ALREADY_RELEASED'
+      ? 409
+      : error.code === 'BOX_DUPLICATED_IN_BATCH'
+        ? 400
+        : 500;
+    res.status(statusCode).json({ success: false, error: error.message });
   }
 });
 

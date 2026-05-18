@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const OqcReleaseBoxModel = require('./oqcReleaseBox.model');
 
 class ExitRecordModel {
   /**
@@ -6,8 +7,24 @@ class ExitRecordModel {
    * Retorna información sobre el estado del boxCode si existe
    */
   static async validateBoxCode(boxCode) {
-    // Buscar en exit_records donde el boxCode aparezca en observations
-    // El formato es: "Cajas: BOX1: 10 pzas, BOX2: 10 pzas" o similar
+    const releaseBox = await OqcReleaseBoxModel.findActiveByBoxCode(boxCode);
+    if (releaseBox) {
+      return {
+        exists: true,
+        folio: releaseBox.oqc_folio || releaseBox.folio,
+        destination: releaseBox.destination,
+        status: releaseBox.exit_status || releaseBox.status,
+        qcPassed: releaseBox.qc_passed === 1 || releaseBox.qc_passed === true,
+        exitDate: releaseBox.exit_date || releaseBox.released_at,
+        type: releaseBox.qc_passed === 1 || releaseBox.qc_passed === true
+          ? 'almacen'
+          : 'contencion'
+      };
+    }
+
+    // Fallback legacy: registros previos a oqc_release_boxes pueden tener cajas
+    // embebidas en observations. La migración las normaliza, pero este fallback
+    // evita bloquear operación si hay un registro histórico con formato irregular.
     const [rows] = await pool.query(
       `SELECT er.id, er.folio, er.destination, er.status, er.qc_passed, 
               er.exit_date, er.observations
@@ -193,20 +210,50 @@ class ExitRecordModel {
       exit_date,
       destination,
       observations,
-      qc_passed
+      qc_passed,
+      boxes
     } = data;
 
-    const [result] = await pool.query(
-      `INSERT INTO exit_records 
-       (folio, part_number_id, esd_box_id, operator_id, quantity,
-        inspection_date, exit_date, destination, observations, qc_passed)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [folio, part_number_id, esd_box_id, operator_id, quantity,
-       inspection_date, exit_date || new Date(), destination || 'Almacen', 
-       observations, qc_passed !== false]
-    );
+    const connection = await pool.getConnection();
 
-    return { id: result.insertId, folio };
+    try {
+      await connection.beginTransaction();
+
+      const [result] = await connection.query(
+        `INSERT INTO exit_records 
+         (folio, part_number_id, esd_box_id, operator_id, quantity,
+          inspection_date, exit_date, destination, observations, qc_passed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [folio, part_number_id, esd_box_id, operator_id, quantity,
+         inspection_date, exit_date || new Date(), destination || 'Almacen', 
+         observations, qc_passed !== false]
+      );
+
+      await OqcReleaseBoxModel.createManyForExitRecord(
+        connection,
+        {
+          id: result.insertId,
+          folio,
+          part_number_id,
+          operator_id,
+          employee_id: data.employee_id || null,
+          destination: destination || 'Almacen',
+          qc_passed: qc_passed !== false,
+          status: 'pending',
+          exit_date: exit_date || new Date(),
+        },
+        boxes || [],
+        { source: 'batch' }
+      );
+
+      await connection.commit();
+      return { id: result.insertId, folio };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   static async update(id, data) {
