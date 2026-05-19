@@ -8,6 +8,8 @@ class BackendService {
   static Process? _backendProcess;
   static bool _isRunning = false;
   static const int _defaultPort = 3000;
+  static const int _startupMaxRetries = 60;
+  static const Duration _startupRetryDelay = Duration(seconds: 1);
   static final _log = LoggerService();
 
   /// Obtener la ruta del ejecutable del backend
@@ -40,10 +42,18 @@ class BackendService {
       return true;
     }
 
+    if (await _checkHealth(logFailures: false)) {
+      _isRunning = true;
+      _log.info('Backend', 'Backend local ya estaba disponible',
+          'Puerto: $_defaultPort');
+      return true;
+    }
+
     final backendExe = _backendPath;
     final workDir = _workingDirectory;
 
-    _log.info('Backend', 'Iniciando backend', 'Ruta: $backendExe\nDirectorio: $workDir');
+    _log.info('Backend', 'Iniciando backend',
+        'Ruta: $backendExe\nDirectorio: $workDir');
 
     // Verificar que existe el ejecutable
     if (!File(backendExe).existsSync()) {
@@ -65,17 +75,29 @@ class BackendService {
         mode: ProcessStartMode.detached,
       );
 
-      // Esperar un momento para que el servidor inicie
-      await Future.delayed(const Duration(seconds: 2));
+      _log.info(
+        'Backend',
+        'Esperando a que el backend responda...',
+        'Timeout aproximado: ${_startupMaxRetries * _startupRetryDelay.inSeconds}s',
+      );
 
-      // Verificar que el servidor está respondiendo
-      final isHealthy = await _checkHealth();
+      // Después de una actualización el backend puede tardar más por migraciones
+      // o backfills. No marcarlo como fallido hasta agotar la ventana de arranque.
+      final isHealthy = await waitForReady(
+        maxRetries: _startupMaxRetries,
+        delay: _startupRetryDelay,
+      );
       if (isHealthy) {
         _isRunning = true;
-        _log.info('Backend', 'Backend iniciado correctamente', 'Puerto: $_defaultPort');
+        _log.info('Backend', 'Backend iniciado correctamente',
+            'Puerto: $_defaultPort');
         return true;
       } else {
-        _log.warning('Backend', 'Backend iniciado pero no responde al health check');
+        _log.warning(
+          'Backend',
+          'Backend iniciado pero no responde al health check',
+          'Puerto: $_defaultPort',
+        );
         return false;
       }
     } catch (e) {
@@ -101,26 +123,30 @@ class BackendService {
             runInShell: true);
       }
     } catch (e) {
-      _log.warning('Backend', 'Error al intentar cerrar procesos', e.toString());
+      _log.warning(
+          'Backend', 'Error al intentar cerrar procesos', e.toString());
     }
   }
 
   /// Verificar si el backend está respondiendo
-  static Future<bool> _checkHealth() async {
+  static Future<bool> _checkHealth({bool logFailures = true}) async {
+    final client = HttpClient();
     try {
-      final client = HttpClient();
       client.connectionTimeout = const Duration(seconds: 5);
 
       final request = await client.getUrl(
         Uri.parse('http://localhost:$_defaultPort/api/health'),
       );
       final response = await request.close();
-      client.close();
 
       return response.statusCode == 200;
     } catch (e) {
-      _log.debug('Backend', 'Health check fallido', e.toString());
+      if (logFailures) {
+        _log.debug('Backend', 'Health check fallido', e.toString());
+      }
       return false;
+    } finally {
+      client.close(force: true);
     }
   }
 
@@ -129,7 +155,14 @@ class BackendService {
       {int maxRetries = 10,
       Duration delay = const Duration(seconds: 1)}) async {
     for (int i = 0; i < maxRetries; i++) {
-      if (await _checkHealth()) {
+      if (await _checkHealth(logFailures: false)) {
+        if (i > 0) {
+          _log.info(
+            'Backend',
+            'Backend respondió al health check',
+            'Intento ${i + 1}/$maxRetries',
+          );
+        }
         return true;
       }
       await Future.delayed(delay);
