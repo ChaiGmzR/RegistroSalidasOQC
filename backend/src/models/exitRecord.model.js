@@ -217,6 +217,7 @@ class ExitRecordModel {
     const connection = await pool.getConnection();
 
     try {
+      await connection.query('SET SESSION innodb_lock_wait_timeout = 10');
       await connection.beginTransaction();
 
       const [operatorRows] = await connection.query(
@@ -255,7 +256,11 @@ class ExitRecordModel {
       await connection.commit();
       return { id: result.insertId, folio };
     } catch (error) {
-      await connection.rollback();
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error('Error al revertir registro OQC:', rollbackError.message);
+      }
       throw error;
     } finally {
       connection.release();

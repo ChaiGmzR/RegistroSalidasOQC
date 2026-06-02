@@ -146,12 +146,18 @@ router.post('/batch', async (req, res) => {
       recordId: id,
     });
   } catch (error) {
+    const isDatabaseTimeout = error.code === 'ER_LOCK_WAIT_TIMEOUT';
     const statusCode = error.code === 'BOX_ALREADY_RELEASED'
       ? 409
       : error.code === 'BOX_DUPLICATED_IN_BATCH'
         ? 400
-        : 500;
-    res.status(statusCode).json({ success: false, error: error.message });
+        : isDatabaseTimeout
+          ? 503
+          : 500;
+    const message = isDatabaseTimeout
+      ? 'La base de datos esta ocupada por otro proceso. Intenta registrar la salida nuevamente en unos segundos.'
+      : error.message;
+    res.status(statusCode).json({ success: false, error: message });
   }
 });
 
