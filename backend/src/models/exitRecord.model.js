@@ -1,5 +1,6 @@
 const pool = require('../config/database');
 const OqcReleaseBoxModel = require('./oqcReleaseBox.model');
+const OqcRejectionModel = require('./oqcRejection.model');
 
 class ExitRecordModel {
   /**
@@ -220,6 +221,8 @@ class ExitRecordModel {
       await connection.query('SET SESSION innodb_lock_wait_timeout = 10');
       await connection.beginTransaction();
 
+      await OqcRejectionModel.validateBoxesForRelease(connection, boxes || []);
+
       const [operatorRows] = await connection.query(
         'SELECT employee_id FROM operators WHERE id = ? LIMIT 1',
         [operator_id]
@@ -252,6 +255,8 @@ class ExitRecordModel {
         boxes || [],
         { source: 'batch' }
       );
+
+      await OqcRejectionModel.markReleasedForBoxes(connection, boxes || [], folio);
 
       await connection.commit();
       return { id: result.insertId, folio };

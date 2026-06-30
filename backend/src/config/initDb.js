@@ -1,5 +1,6 @@
 const pool = require('./database');
 const OqcReleaseBoxModel = require('../models/oqcReleaseBox.model');
+const BoxScanModel = require('../models/boxScan.model');
 
 const initDatabase = async () => {
   try {
@@ -188,7 +189,7 @@ const initDatabase = async () => {
         rejection_reason TEXT NOT NULL,
         box_codes TEXT,
         rejection_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        status ENUM('pending', 'in_review', 'corrected', 'returned') DEFAULT 'pending',
+        status ENUM('rejected', 'approved', 'partial_approved', 'released') DEFAULT 'rejected',
         corrected_by INT,
         corrected_at TIMESTAMP NULL,
         correction_notes TEXT,
@@ -323,6 +324,99 @@ const initDatabase = async () => {
         INDEX idx_oqc_release_released_at (released_at)
       )
     `);
+
+    // Migración de estados legacy de rechazos hacia el nuevo flujo.
+    try {
+      await connection.query(`
+        ALTER TABLE oqc_rejections
+        MODIFY COLUMN status ENUM(
+          'pending', 'in_review', 'corrected', 'returned',
+          'rejected', 'approved', 'partial_approved', 'released'
+        ) DEFAULT 'rejected'
+      `);
+      await connection.query(`
+        UPDATE oqc_rejections
+        SET status = CASE
+          WHEN status IN ('pending', 'in_review') THEN 'rejected'
+          WHEN status = 'corrected' THEN 'approved'
+          WHEN status = 'returned' THEN 'released'
+          ELSE status
+        END
+      `);
+      await connection.query(`
+        ALTER TABLE oqc_rejections
+        MODIFY COLUMN status ENUM('rejected', 'approved', 'partial_approved', 'released') DEFAULT 'rejected'
+      `);
+      console.log('✅ Estados de oqc_rejections migrados al nuevo flujo');
+    } catch (err) {
+      console.log('⚠️ Error migrando estados de oqc_rejections:', err.message);
+    }
+
+    // Detalle normalizado por pieza/serial para aprobación y liberación de rechazos.
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS oqc_rejection_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        rejection_id INT NOT NULL,
+        serial VARCHAR(255) NOT NULL,
+        original_box_code VARCHAR(100) NOT NULL,
+        part_number VARCHAR(50),
+        status ENUM('rejected', 'approved', 'released') DEFAULT 'rejected',
+        approved_by INT,
+        approved_at TIMESTAMP NULL,
+        released_at TIMESTAMP NULL,
+        release_folio VARCHAR(20),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (rejection_id) REFERENCES oqc_rejections(id) ON DELETE CASCADE,
+        FOREIGN KEY (approved_by) REFERENCES operators(id),
+        UNIQUE KEY uq_oqc_rejection_item (rejection_id, serial),
+        INDEX idx_oqc_rejection_item_serial (serial),
+        INDEX idx_oqc_rejection_item_box (original_box_code),
+        INDEX idx_oqc_rejection_item_status (status)
+      )
+    `);
+
+    // Backfill de piezas para rechazos históricos con box_codes parseables.
+    try {
+      const [legacyRejections] = await connection.query(`
+        SELECT r.id, r.box_codes
+        FROM oqc_rejections r
+        LEFT JOIN oqc_rejection_items i ON i.rejection_id = r.id
+        WHERE r.box_codes IS NOT NULL
+          AND r.box_codes <> ''
+        GROUP BY r.id, r.box_codes
+        HAVING COUNT(i.id) = 0
+      `);
+
+      let backfilledItems = 0;
+      const boxRegex = /([^,:\n]+?)\s*:\s*\d+\s*pzas?/gi;
+      for (const rejection of legacyRejections) {
+        const boxCodes = [];
+        let match;
+        while ((match = boxRegex.exec(rejection.box_codes)) !== null) {
+          const boxCode = match[1].trim();
+          if (boxCode && !boxCodes.includes(boxCode)) {
+            boxCodes.push(boxCode);
+          }
+        }
+
+        if (boxCodes.length === 0) continue;
+
+        const serials = await BoxScanModel.getSerialsByBoxCodes(boxCodes, connection);
+        for (const item of serials) {
+          await connection.query(
+            `INSERT IGNORE INTO oqc_rejection_items
+             (rejection_id, serial, original_box_code, part_number, status)
+             VALUES (?, ?, ?, ?, 'rejected')`,
+            [rejection.id, item.serial, item.box_code, item.part_number]
+          );
+          backfilledItems += 1;
+        }
+      }
+      console.log(`✅ Backfill oqc_rejection_items: ${backfilledItems} piezas procesadas`);
+    } catch (err) {
+      console.log('⚠️ Error migrando piezas históricas de rechazo:', err.message);
+    }
 
     try {
       const migrationSummary = await OqcReleaseBoxModel.migrateFromExitRecords(connection);

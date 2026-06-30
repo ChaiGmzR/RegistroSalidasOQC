@@ -15,9 +15,9 @@ class BackendService {
   /// Obtener la ruta del ejecutable del backend
   static String get _backendPath {
     if (kDebugMode) {
-      // En desarrollo, usar la ruta del proyecto
-      return path.join(
-          Directory.current.path, '..', 'backend', 'dist', 'oqc-backend.exe');
+      // En desarrollo, usar node contra el backend del repo para evitar
+      // quedarse conectado a un ejecutable instalado/desactualizado.
+      return 'node';
     } else {
       // En producción, el backend está junto al ejecutable
       final exePath = Platform.resolvedExecutable;
@@ -28,6 +28,10 @@ class BackendService {
 
   /// Obtener la ruta del directorio de trabajo del backend
   static String get _workingDirectory {
+    if (kDebugMode) {
+      return path.normalize(path.join(Directory.current.path, '..', 'backend'));
+    }
+
     final backendExe = _backendPath;
     return path.dirname(backendExe);
   }
@@ -56,7 +60,7 @@ class BackendService {
         'Ruta: $backendExe\nDirectorio: $workDir');
 
     // Verificar que existe el ejecutable
-    if (!File(backendExe).existsSync()) {
+    if (!kDebugMode && !File(backendExe).existsSync()) {
       _log.error('Backend', 'Ejecutable no encontrado', backendExe);
       return false;
     }
@@ -70,7 +74,7 @@ class BackendService {
     try {
       _backendProcess = await Process.start(
         backendExe,
-        [],
+        kDebugMode ? ['src/server.js'] : [],
         workingDirectory: workDir,
         mode: ProcessStartMode.detached,
       );

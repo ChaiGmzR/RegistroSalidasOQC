@@ -813,6 +813,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
           actualQuantity: _totalQuantity,
           rejectionReason: rejectionReason,
           boxCodes: boxDetails,
+          boxes: boxes,
         );
 
         if (rejectionResult['success'] == true) {

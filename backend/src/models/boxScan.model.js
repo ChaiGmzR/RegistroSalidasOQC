@@ -67,6 +67,41 @@ class BoxScanModel {
     return rows[0] || null;
   }
 
+  static async getSerialsByBoxCode(boxCode, queryable = pool) {
+    const rows = await this.getSerialsByBoxCodes([boxCode], queryable);
+    return rows.filter((row) => row.box_code === boxCode);
+  }
+
+  static async getSerialsByBoxCodes(boxCodes, queryable = pool) {
+    const normalizedBoxCodes = [...new Set((boxCodes || [])
+      .map((boxCode) => (boxCode || '').toString().trim())
+      .filter(Boolean))];
+
+    if (normalizedBoxCodes.length === 0) return [];
+
+    const placeholders = normalizedBoxCodes.map(() => '?').join(',');
+    const [rows] = await queryable.query(
+      `SELECT
+         box_code,
+         serial,
+         MIN(first_scan) as first_scan,
+         MAX(last_scan) as last_scan,
+         MAX(folder_date) as folder_date
+       FROM box_scans
+       WHERE box_code IN (${placeholders})
+         AND serial IS NOT NULL
+         AND serial <> ''
+       GROUP BY box_code, serial
+       ORDER BY box_code, serial`,
+      normalizedBoxCodes
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      part_number: this.extractPartNumberFromSerial(row.serial),
+    }));
+  }
+
   /**
    * Verificar si existe el código de caja
    */

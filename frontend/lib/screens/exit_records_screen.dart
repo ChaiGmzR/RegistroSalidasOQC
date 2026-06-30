@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../providers/app_provider.dart';
 import '../models/exit_record.dart';
 import '../models/oqc_rejection.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
 class ExitRecordsScreen extends StatefulWidget {
@@ -19,27 +20,30 @@ class ExitRecordsScreen extends StatefulWidget {
 class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   // Filtros para pestaña Liberación
   DateTime? _liberacionStartDate;
   DateTime? _liberacionEndDate;
   final _liberacionSearchController = TextEditingController();
-  
+
   // Filtros para pestaña Rechazos
   String _rechazosStatusFilter = 'all'; // 'all', 'pending', 'released'
   final _rechazosSearchController = TextEditingController();
+  bool _isLoadingLiberacion = true;
+  bool _isLoadingRechazos = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_onTabChanged);
-    
+
     // Por defecto, Liberación muestra registros de hoy
     final today = DateTime.now();
     _liberacionStartDate = DateTime(today.year, today.month, today.day);
-    _liberacionEndDate = DateTime(today.year, today.month, today.day, 23, 59, 59);
-    
+    _liberacionEndDate =
+        DateTime(today.year, today.month, today.day, 23, 59, 59);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadLiberacionRecords();
     });
@@ -56,7 +60,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    
+
     if (_tabController.index == 0) {
       _loadLiberacionRecords();
     } else {
@@ -64,33 +68,54 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     }
   }
 
-  void _loadLiberacionRecords() {
+  Future<void> _loadLiberacionRecords() async {
     final provider = context.read<AppProvider>();
-    provider.loadExitRecords(
-      startDate: _liberacionStartDate?.toIso8601String().split('T')[0],
-      endDate: _liberacionEndDate?.toIso8601String().split('T')[0],
-      partNumber: _liberacionSearchController.text.isEmpty 
-          ? null 
-          : _liberacionSearchController.text,
-      qcPassed: true, // Solo registros aprobados
-    );
+    if (mounted) {
+      setState(() => _isLoadingLiberacion = true);
+    }
+
+    try {
+      await provider.loadExitRecords(
+        startDate: _liberacionStartDate?.toIso8601String().split('T')[0],
+        endDate: _liberacionEndDate?.toIso8601String().split('T')[0],
+        partNumber: _liberacionSearchController.text.isEmpty
+            ? null
+            : _liberacionSearchController.text,
+        qcPassed: true, // Solo registros aprobados
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLiberacion = false);
+      }
+    }
   }
 
-  void _loadRechazosRecords() {
+  Future<void> _loadRechazosRecords() async {
     final provider = context.read<AppProvider>();
-    provider.loadOqcRejections(
-      status: _rechazosStatusFilter == 'all' ? null : _rechazosStatusFilter,
-      partNumber: _rechazosSearchController.text.isEmpty 
-          ? null 
-          : _rechazosSearchController.text,
-    );
+    if (mounted) {
+      setState(() => _isLoadingRechazos = true);
+    }
+
+    try {
+      await provider.loadOqcRejections(
+        status: _rechazosStatusFilter == 'all' ? null : _rechazosStatusFilter,
+        partNumber: _rechazosSearchController.text.isEmpty
+            ? null
+            : _rechazosSearchController.text,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingRechazos = false);
+      }
+    }
   }
 
   void _clearLiberacionFilters() {
     final today = DateTime.now();
     setState(() {
       _liberacionStartDate = DateTime(today.year, today.month, today.day);
-      _liberacionEndDate = DateTime(today.year, today.month, today.day, 23, 59, 59);
+      _liberacionEndDate =
+          DateTime(today.year, today.month, today.day, 23, 59, 59);
       _liberacionSearchController.clear();
     });
     _loadLiberacionRecords();
@@ -109,9 +134,11 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      initialDateRange: _liberacionStartDate != null && _liberacionEndDate != null
-          ? DateTimeRange(start: _liberacionStartDate!, end: _liberacionEndDate!)
-          : null,
+      initialDateRange:
+          _liberacionStartDate != null && _liberacionEndDate != null
+              ? DateTimeRange(
+                  start: _liberacionStartDate!, end: _liberacionEndDate!)
+              : null,
     );
     if (picked != null) {
       setState(() {
@@ -140,31 +167,35 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     try {
       // Crear contenido CSV (compatible con Excel)
       final StringBuffer csv = StringBuffer();
-      
+
       // Encabezados
-      csv.writeln('Folio,Número de Parte,Modelo,Cantidad,Caja ESD,Lote,Operador,Fecha,${type == 'rechazos' ? 'Estado,' : ''}Observaciones');
-      
+      csv.writeln(
+          'Folio,Número de Parte,Modelo,Cantidad,Caja ESD,Lote,Operador,Fecha,${type == 'rechazos' ? 'Estado,' : ''}Observaciones');
+
       // Datos
       for (final record in records) {
-        final fecha = record.exitDate != null 
+        final fecha = record.exitDate != null
             ? DateFormat('dd/MM/yyyy HH:mm').format(record.exitDate!)
             : '';
-        final observaciones = (record.observations ?? '').replaceAll(',', ';').replaceAll('\n', ' ');
-        final estado = record.status == 'pending' ? 'En Contención' : 
-                       record.status == 'released' ? 'Liberado' : record.status;
-        
-        csv.writeln(
-          '${record.folio ?? ""},'
-          '${record.partNumber ?? ""},'
-          '${record.model ?? ""},'
-          '${record.quantity},'
-          '${record.boxCode ?? ""},'
-          '${record.lotNumber ?? ""},'
-          '${record.operatorName ?? ""},'
-          '$fecha,'
-          '${type == 'rechazos' ? '$estado,' : ''}'
-          '$observaciones'
-        );
+        final observaciones = (record.observations ?? '')
+            .replaceAll(',', ';')
+            .replaceAll('\n', ' ');
+        final estado = record.status == 'pending'
+            ? 'En Contención'
+            : record.status == 'released'
+                ? 'Liberado'
+                : record.status;
+
+        csv.writeln('${record.folio ?? ""},'
+            '${record.partNumber ?? ""},'
+            '${record.model ?? ""},'
+            '${record.quantity},'
+            '${record.boxCode ?? ""},'
+            '${record.lotNumber ?? ""},'
+            '${record.operatorName ?? ""},'
+            '$fecha,'
+            '${type == 'rechazos' ? '$estado,' : ''}'
+            '$observaciones');
       }
 
       // Guardar archivo
@@ -276,7 +307,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
             children: [
               // Pestañas alineadas a la izquierda
               Container(
-                color: const Color(0xFFE8E8E8), // Fondo gris claro para área de pestañas
+                color: const Color(
+                    0xFFE8E8E8), // Fondo gris claro para área de pestañas
                 child: Row(
                   children: [
                     // Las pestañas ocupan 1/5 del ancho
@@ -293,15 +325,18 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                 builder: (context, _) {
                                   final isSelected = _tabController.index == 0;
                                   return Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: isSelected 
-                                          ? const Color(0xFFF5F5F5) // Mismo color que contenido
-                                          : const Color(0xFFE0E0E0), // Más oscuro
+                                      color: isSelected
+                                          ? const Color(
+                                              0xFFF5F5F5) // Mismo color que contenido
+                                          : const Color(
+                                              0xFFE0E0E0), // Más oscuro
                                       border: Border(
                                         bottom: BorderSide(
-                                          color: isSelected 
-                                              ? AppTheme.primaryColor 
+                                          color: isSelected
+                                              ? AppTheme.primaryColor
                                               : Colors.transparent,
                                           width: 2,
                                         ),
@@ -312,8 +347,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: AppTheme.textDark,
-                                        fontWeight: isSelected 
-                                            ? FontWeight.w600 
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
                                             : FontWeight.normal,
                                         fontSize: 13,
                                       ),
@@ -332,15 +367,16 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                 builder: (context, _) {
                                   final isSelected = _tabController.index == 1;
                                   return Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
                                     decoration: BoxDecoration(
-                                      color: isSelected 
+                                      color: isSelected
                                           ? const Color(0xFFF5F5F5)
                                           : const Color(0xFFE0E0E0),
                                       border: Border(
                                         bottom: BorderSide(
-                                          color: isSelected 
-                                              ? AppTheme.primaryColor 
+                                          color: isSelected
+                                              ? AppTheme.primaryColor
                                               : Colors.transparent,
                                           width: 2,
                                         ),
@@ -351,8 +387,8 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         color: AppTheme.textDark,
-                                        fontWeight: isSelected 
-                                            ? FontWeight.w600 
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
                                             : FontWeight.normal,
                                         fontSize: 13,
                                       ),
@@ -392,9 +428,9 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
   Widget _buildLiberacionTab(AppProvider provider) {
     // Filtrar solo registros con qc_passed = true
-    final liberacionRecords = provider.exitRecords
-        .where((r) => r.qcPassed)
-        .toList();
+    final liberacionRecords = _isLoadingLiberacion
+        ? <ExitRecord>[]
+        : provider.exitRecords.where((r) => r.qcPassed).toList();
 
     return Column(
       children: [
@@ -468,16 +504,19 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
         // Tabla de liberación
         Expanded(
-          child: liberacionRecords.isEmpty
-              ? _buildEmptyState('No hay registros de liberación')
-              : _buildDataTable(liberacionRecords, showStatusColumn: false),
+          child: _isLoadingLiberacion
+              ? const Center(child: CircularProgressIndicator())
+              : liberacionRecords.isEmpty
+                  ? _buildEmptyState('No hay registros de liberación')
+                  : _buildDataTable(liberacionRecords, showStatusColumn: false),
         ),
       ],
     );
   }
 
   Widget _buildRechazosTab(AppProvider provider) {
-    final rechazosRecords = provider.oqcRejections;
+    final rechazosRecords =
+        _isLoadingRechazos ? <OqcRejection>[] : provider.oqcRejections;
 
     // Filtrar localmente por búsqueda si hay texto
     final filteredRecords = _rechazosSearchController.text.isEmpty
@@ -537,20 +576,20 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                       child: Text('Todos'),
                     ),
                     DropdownMenuItem(
-                      value: 'pending',
-                      child: Text('Pendiente'),
+                      value: 'rejected',
+                      child: Text('Rechazado'),
                     ),
                     DropdownMenuItem(
-                      value: 'in_review',
-                      child: Text('En Revisión'),
+                      value: 'approved',
+                      child: Text('Aprobado'),
                     ),
                     DropdownMenuItem(
-                      value: 'corrected',
-                      child: Text('Corregido'),
+                      value: 'partial_approved',
+                      child: Text('Aprobado Parcial'),
                     ),
                     DropdownMenuItem(
-                      value: 'returned',
-                      child: Text('Devuelto'),
+                      value: 'released',
+                      child: Text('Liberado'),
                     ),
                   ],
                   onChanged: (value) {
@@ -592,9 +631,11 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
         // Tabla de rechazos
         Expanded(
-          child: filteredRecords.isEmpty
-              ? _buildEmptyState('No hay registros de rechazos')
-              : _buildRechazosDataTable(filteredRecords),
+          child: _isLoadingRechazos
+              ? const Center(child: CircularProgressIndicator())
+              : filteredRecords.isEmpty
+                  ? _buildEmptyState('No hay registros de rechazos')
+                  : _buildRechazosDataTable(filteredRecords),
         ),
       ],
     );
@@ -610,28 +651,26 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
 
     try {
       final StringBuffer csv = StringBuffer();
-      csv.writeln('Folio Rechazo,No. Parte,Modelo,Cant. Esperada,Cant. Real,Diferencia,Operador,Fecha,Estado,Razón,Cajas');
+      csv.writeln(
+          'Folio Rechazo,No. Parte,Modelo,Cantidad,Operador,Fecha,Estado,Razón,Cajas');
 
       for (final record in records) {
         final fecha = record.rejectionDate != null
             ? DateFormat('dd/MM/yyyy HH:mm').format(record.rejectionDate!)
             : '';
-        final razon = record.rejectionReason.replaceAll(',', ';').replaceAll('\n', ' ');
+        final razon =
+            record.rejectionReason.replaceAll(',', ';').replaceAll('\n', ' ');
         final cajas = (record.boxCodes ?? '').replaceAll(',', ';');
 
-        csv.writeln(
-          '${record.rejectionFolio ?? ""},'
-          '${record.partNumber ?? ""},'
-          '${record.model ?? ""},'
-          '${record.expectedQuantity},'
-          '${record.actualQuantity},'
-          '${record.quantityDifference},'
-          '${record.operatorName ?? ""},'
-          '$fecha,'
-          '${record.statusLabel},'
-          '$razon,'
-          '$cajas'
-        );
+        csv.writeln('${record.rejectionFolio ?? ""},'
+            '${record.partNumber ?? ""},'
+            '${record.model ?? ""},'
+            '${record.displayQuantity},'
+            '${record.operatorName ?? ""},'
+            '$fecha,'
+            '${record.statusLabel},'
+            '$razon,'
+            '$cajas');
       }
 
       final directory = await getApplicationDocumentsDirectory();
@@ -670,18 +709,32 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     );
   }
 
+  void _showRejectionApproval(OqcRejection rejection) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _RejectionApprovalDialog(
+        rejection: rejection,
+        onApproved: _loadRechazosRecords,
+      ),
+    );
+  }
+
   Widget _buildRechazosDataTable(List<OqcRejection> records) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: DataTable2(
+          dataRowHeight: 56,
+          headingRowHeight: 56,
           columnSpacing: 12,
           horizontalMargin: 12,
-          minWidth: 1100,
+          minWidth: 980,
           border: TableBorder(
             verticalInside: BorderSide(color: Colors.grey.shade200, width: 0.5),
-            horizontalInside: BorderSide(color: Colors.grey.shade200, width: 0.5),
+            horizontalInside:
+                BorderSide(color: Colors.grey.shade200, width: 0.5),
             bottom: BorderSide(color: Colors.grey.shade200, width: 0.5),
           ),
           headingRowColor: WidgetStateProperty.all(
@@ -701,17 +754,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
               size: ColumnSize.L,
             ),
             DataColumn2(
-              label: Text('Cant. Esperada'),
-              size: ColumnSize.S,
-              numeric: true,
-            ),
-            DataColumn2(
-              label: Text('Cant. Real'),
-              size: ColumnSize.S,
-              numeric: true,
-            ),
-            DataColumn2(
-              label: Text('Diferencia'),
+              label: Text('Cantidad'),
               size: ColumnSize.S,
               numeric: true,
             ),
@@ -747,14 +790,21 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                 DataCell(
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(record.partNumber ?? '-'),
+                      Text(
+                        record.partNumber ?? '-',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       if (record.model != null)
                         Text(
                           record.model!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppTheme.textSecondary,
                           ),
                         ),
@@ -762,21 +812,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                   ),
                 ),
                 DataCell(
-                  Text(NumberFormat('#,###').format(record.expectedQuantity)),
-                ),
-                DataCell(
-                  Text(NumberFormat('#,###').format(record.actualQuantity)),
-                ),
-                DataCell(
-                  Text(
-                    NumberFormat('#,###').format(record.quantityDifference),
-                    style: TextStyle(
-                      color: record.quantityDifference != 0
-                          ? AppTheme.errorColor
-                          : null,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  Text(NumberFormat('#,###').format(record.displayQuantity)),
                 ),
                 DataCell(Text(record.operatorName ?? '-')),
                 DataCell(
@@ -791,10 +827,21 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                   _RejectionStatusBadge(status: record.status),
                 ),
                 DataCell(
-                  IconButton(
-                    icon: const Icon(Icons.visibility, size: 20),
-                    onPressed: () => _showRejectionDetails(record),
-                    tooltip: 'Ver detalles',
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.visibility, size: 20),
+                        onPressed: () => _showRejectionDetails(record),
+                        tooltip: 'Ver detalles',
+                      ),
+                      if (record.canApprove)
+                        IconButton(
+                          icon: const Icon(Icons.verified_user, size: 20),
+                          onPressed: () => _showRejectionApproval(record),
+                          tooltip: 'Aprobar rechazo',
+                        ),
+                    ],
                   ),
                 ),
               ],
@@ -828,18 +875,22 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     );
   }
 
-  Widget _buildDataTable(List<ExitRecord> records, {required bool showStatusColumn}) {
+  Widget _buildDataTable(List<ExitRecord> records,
+      {required bool showStatusColumn}) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: DataTable2(
+          dataRowHeight: 56,
+          headingRowHeight: 56,
           columnSpacing: 12,
           horizontalMargin: 12,
           minWidth: showStatusColumn ? 1000 : 900,
           border: TableBorder(
             verticalInside: BorderSide(color: Colors.grey.shade200, width: 0.5),
-            horizontalInside: BorderSide(color: Colors.grey.shade200, width: 0.5),
+            horizontalInside:
+                BorderSide(color: Colors.grey.shade200, width: 0.5),
             bottom: BorderSide(color: Colors.grey.shade200, width: 0.5),
           ),
           headingRowColor: WidgetStateProperty.all(
@@ -904,14 +955,21 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                 DataCell(
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(record.partNumber ?? '-'),
+                      Text(
+                        record.partNumber ?? '-',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       if (record.model != null)
                         Text(
                           record.model!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppTheme.textSecondary,
                           ),
                         ),
@@ -1044,10 +1102,10 @@ class _RecordDetailsDialog extends StatelessWidget {
     if (record.observations == null || record.observations!.isEmpty) {
       return [];
     }
-    
+
     final regex = RegExp(r'BoxCodes:\s*\[([^\]]*)\]');
     final match = regex.firstMatch(record.observations!);
-    
+
     if (match != null && match.group(1) != null) {
       final codesString = match.group(1)!;
       return codesString
@@ -1056,7 +1114,7 @@ class _RecordDetailsDialog extends StatelessWidget {
           .where((s) => s.isNotEmpty)
           .toList();
     }
-    
+
     return [];
   }
 
@@ -1064,12 +1122,13 @@ class _RecordDetailsDialog extends StatelessWidget {
     if (record.observations == null || record.observations!.isEmpty) {
       return '-';
     }
-    
+
     String clean = record.observations!
         .replaceAll(RegExp(r'BoxCodes:\s*\[[^\]]*\]\s*'), '')
-        .replaceAll(RegExp(r'\[Rechazo de Almacén - Folio anterior: [^\]]+\]\s*'), '')
+        .replaceAll(
+            RegExp(r'\[Rechazo de Almacén - Folio anterior: [^\]]+\]\s*'), '')
         .trim();
-    
+
     return clean.isEmpty ? '-' : clean;
   }
 
@@ -1077,7 +1136,7 @@ class _RecordDetailsDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final boxCodes = _extractBoxCodes();
     final cleanObservations = _getCleanObservations();
-    
+
     return Dialog(
       child: Container(
         width: 550,
@@ -1095,42 +1154,45 @@ class _RecordDetailsDialog extends StatelessWidget {
                     'Folio: ${record.folio}',
                     style: AppTheme.headerStyle.copyWith(fontSize: 20),
                   ),
-                  if (!record.qcPassed)
-                    _StatusBadge(status: record.status),
+                  if (!record.qcPassed) _StatusBadge(status: record.status),
                 ],
               ),
             ),
-            
+
             // Banner informativo según tipo
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              color: record.qcPassed 
+              color: record.qcPassed
                   ? Colors.green.withOpacity(0.1)
                   : Colors.orange.withOpacity(0.1),
               child: Row(
                 children: [
                   Icon(
                     record.qcPassed ? Icons.check_circle : Icons.warning_amber,
-                    color: record.qcPassed ? Colors.green[700] : Colors.orange[700],
+                    color: record.qcPassed
+                        ? Colors.green[700]
+                        : Colors.orange[700],
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    record.qcPassed 
+                    record.qcPassed
                         ? 'Registro de Liberación'
                         : 'Registro de Rechazo',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: record.qcPassed ? Colors.green[800] : Colors.orange[800],
+                      color: record.qcPassed
+                          ? Colors.green[800]
+                          : Colors.orange[800],
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             const Divider(height: 1),
-            
+
             // Contenido scrolleable
             Flexible(
               child: SingleChildScrollView(
@@ -1145,13 +1207,14 @@ class _RecordDetailsDialog extends StatelessWidget {
                     _DetailRow('Operador', record.operatorName ?? '-'),
                     _DetailRow(
                       'Fecha de Inspección',
-                      DateFormat('dd/MM/yyyy HH:mm').format(record.inspectionDate),
+                      DateFormat('dd/MM/yyyy HH:mm')
+                          .format(record.inspectionDate),
                     ),
                     _DetailRow('Destino', record.destination),
                     _DetailRow('Observaciones', cleanObservations),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Tabla de Box Codes
                     if (boxCodes.isNotEmpty) ...[
                       const Text(
@@ -1171,8 +1234,10 @@ class _RecordDetailsDialog extends StatelessWidget {
                         child: SingleChildScrollView(
                           child: Table(
                             border: TableBorder(
-                              horizontalInside: BorderSide(color: Colors.grey[200]!),
-                              verticalInside: BorderSide(color: Colors.grey[200]!, width: 0.5),
+                              horizontalInside:
+                                  BorderSide(color: Colors.grey[200]!),
+                              verticalInside: BorderSide(
+                                  color: Colors.grey[200]!, width: 0.5),
                             ),
                             columnWidths: const {
                               0: FixedColumnWidth(50),
@@ -1191,14 +1256,16 @@ class _RecordDetailsDialog extends StatelessWidget {
                                     padding: EdgeInsets.all(10),
                                     child: Text(
                                       '#',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                   Padding(
                                     padding: EdgeInsets.all(10),
                                     child: Text(
                                       'Box Code',
-                                      style: TextStyle(fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                 ],
@@ -1238,9 +1305,9 @@ class _RecordDetailsDialog extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             const Divider(height: 1),
-            
+
             // Botón cerrar
             Padding(
               padding: const EdgeInsets.all(16),
@@ -1308,24 +1375,27 @@ class _RejectionStatusBadge extends StatelessWidget {
     IconData? icon;
 
     switch (status) {
+      case 'rejected':
       case 'pending':
         color = AppTheme.warningColor;
-        text = 'Pendiente';
+        text = 'Rechazado';
         icon = Icons.hourglass_empty;
         break;
-      case 'in_review':
-        color = Colors.blue;
-        text = 'En Revisión';
-        icon = Icons.search;
-        break;
+      case 'approved':
       case 'corrected':
         color = AppTheme.successColor;
-        text = 'Corregido';
+        text = 'Aprobado';
         icon = Icons.check_circle_outline;
         break;
+      case 'partial_approved':
+        color = Colors.blue;
+        text = 'Aprobado Parcial';
+        icon = Icons.rule;
+        break;
+      case 'released':
       case 'returned':
         color = AppTheme.accentColor;
-        text = 'Devuelto';
+        text = 'Liberado';
         icon = Icons.undo;
         break;
       default:
@@ -1356,6 +1426,306 @@ class _RejectionStatusBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RejectionApprovalDialog extends StatefulWidget {
+  final OqcRejection rejection;
+  final VoidCallback onApproved;
+
+  const _RejectionApprovalDialog({
+    required this.rejection,
+    required this.onApproved,
+  });
+
+  @override
+  State<_RejectionApprovalDialog> createState() =>
+      _RejectionApprovalDialogState();
+}
+
+class _RejectionApprovalDialogState extends State<_RejectionApprovalDialog> {
+  final _pinController = TextEditingController();
+  OqcRejectionDetails? _details;
+  final Set<String> _selectedSerials = {};
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetails();
+  }
+
+  @override
+  void dispose() {
+    _pinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDetails() async {
+    try {
+      final details = await ApiService.getOqcRejectionDetails(
+        widget.rejection.id!,
+      );
+      setState(() {
+        _details = details;
+        _selectedSerials
+          ..clear()
+          ..addAll(details.items
+              .where((item) => item.status == 'approved')
+              .map((item) => item.serial));
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _approve() async {
+    if (_details == null || _pinController.text.trim().isEmpty) {
+      setState(() => _error = 'Ingrese el PIN del supervisor');
+      return;
+    }
+
+    if (_selectedSerials.isEmpty) {
+      setState(() => _error = 'Seleccione al menos una pieza');
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _error = null;
+    });
+
+    try {
+      await ApiService.approveOqcRejection(
+        id: widget.rejection.id!,
+        supervisorPin: _pinController.text.trim(),
+        approvedSerials: _selectedSerials.toList(),
+      );
+
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      widget.onApproved();
+      Navigator.pop(context);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Rechazo aprobado correctamente')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final details = _details;
+
+    return Dialog(
+      child: SizedBox(
+        width: 820,
+        height: 700,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Aprobar ${widget.rejection.rejectionFolio}',
+                      style: AppTheme.headerStyle.copyWith(fontSize: 20),
+                    ),
+                  ),
+                  _RejectionStatusBadge(status: widget.rejection.status),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            if (_isLoading)
+              const Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (_error != null && details == null)
+              Expanded(child: Center(child: Text(_error!)))
+            else if (details == null || details.items.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text('Este rechazo no tiene piezas serializadas.'),
+                ),
+              )
+            else
+              Expanded(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          _DetailRow(
+                              'No. Parte', details.rejection.partNumber ?? '-'),
+                          _DetailRow('Operador',
+                              details.rejection.operatorName ?? '-'),
+                          _DetailRow(
+                              'Razón', details.rejection.rejectionReason),
+                          _DetailRow(
+                            'Piezas',
+                            '${details.items.length} rechazadas | '
+                                '${details.approvedCount} aprobadas | '
+                                '${details.releasedCount} liberadas | '
+                                '${_selectedSerials.length} seleccionadas',
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        children: details.groupedByBox.entries.map((entry) {
+                          final approvableItems = entry.value
+                              .where((item) => item.status == 'rejected')
+                              .toList();
+                          final selectedCount = approvableItems
+                              .where((item) =>
+                                  _selectedSerials.contains(item.serial))
+                              .length;
+                          final bool? boxValue = approvableItems.isEmpty
+                              ? false
+                              : selectedCount == approvableItems.length
+                                  ? true
+                                  : selectedCount == 0
+                                      ? false
+                                      : null;
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: ExpansionTile(
+                              initiallyExpanded: true,
+                              title: Row(
+                                children: [
+                                  Checkbox(
+                                    tristate: true,
+                                    value: boxValue,
+                                    onChanged: approvableItems.isEmpty
+                                        ? null
+                                        : (value) {
+                                            setState(() {
+                                              if (value == true ||
+                                                  boxValue == null) {
+                                                _selectedSerials.addAll(
+                                                  approvableItems.map(
+                                                      (item) => item.serial),
+                                                );
+                                              } else {
+                                                for (final item
+                                                    in approvableItems) {
+                                                  _selectedSerials
+                                                      .remove(item.serial);
+                                                }
+                                              }
+                                            });
+                                          },
+                                  ),
+                                  Expanded(child: Text('Box ID: ${entry.key}')),
+                                ],
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(left: 48),
+                                child: Text(
+                                  '${entry.value.length} pieza(s) | $selectedCount seleccionada(s)',
+                                ),
+                              ),
+                              children: entry.value.map((item) {
+                                final isReleased = item.status == 'released';
+                                final isApproved = item.status == 'approved';
+                                return CheckboxListTile(
+                                  dense: true,
+                                  value: _selectedSerials.contains(item.serial),
+                                  onChanged: isReleased || isApproved
+                                      ? null
+                                      : (value) {
+                                          setState(() {
+                                            if (value == true) {
+                                              _selectedSerials.add(item.serial);
+                                            } else {
+                                              _selectedSerials
+                                                  .remove(item.serial);
+                                            }
+                                          });
+                                        },
+                                  title: Text(item.serial),
+                                  subtitle: Text(item.statusLabel),
+                                  secondary: Text(item.partNumber ?? ''),
+                                );
+                              }).toList(),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _pinController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'PIN de supervisor',
+                              prefixIcon: Icon(Icons.lock),
+                            ),
+                            onSubmitted: (_) => _approve(),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _error!,
+                              style: const TextStyle(
+                                color: AppTheme.errorColor,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed:
+                        _isSubmitting ? null : () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _isSubmitting || _isLoading ? null : _approve,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.verified_user),
+                    label: const Text('Aprobar selección'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1422,15 +1792,21 @@ class _RejectionDetailsDialog extends StatelessWidget {
                     _DetailRow('Número de Parte', rejection.partNumber ?? '-'),
                     _DetailRow('Descripción', rejection.partDescription ?? '-'),
                     _DetailRow('Modelo', rejection.model ?? '-'),
-                    _DetailRow('Cant. Esperada', '${rejection.expectedQuantity} piezas'),
-                    _DetailRow('Cant. Real', '${rejection.actualQuantity} piezas'),
-                    _DetailRow('Diferencia', '${rejection.quantityDifference} piezas'),
+                    _DetailRow(
+                      'Cantidad rechazada',
+                      '${rejection.displayQuantity} piezas',
+                    ),
+                    _DetailRow('Piezas aprobadas',
+                        '${rejection.approvedCount} piezas'),
+                    _DetailRow('Piezas liberadas',
+                        '${rejection.releasedCount} piezas'),
                     _DetailRow('Operador', rejection.operatorName ?? '-'),
                     _DetailRow('No. Empleado', rejection.employeeId ?? '-'),
                     _DetailRow(
                       'Fecha de Rechazo',
                       rejection.rejectionDate != null
-                          ? DateFormat('dd/MM/yyyy HH:mm').format(rejection.rejectionDate!)
+                          ? DateFormat('dd/MM/yyyy HH:mm')
+                              .format(rejection.rejectionDate!)
                           : '-',
                     ),
                     _DetailRow('Razón del Rechazo', rejection.rejectionReason),
@@ -1443,15 +1819,18 @@ class _RejectionDetailsDialog extends StatelessWidget {
                     if (rejection.correctedAt != null)
                       _DetailRow(
                         'Fecha de Corrección',
-                        DateFormat('dd/MM/yyyy HH:mm').format(rejection.correctedAt!),
+                        DateFormat('dd/MM/yyyy HH:mm')
+                            .format(rejection.correctedAt!),
                       ),
                     if (rejection.correctionNotes != null)
-                      _DetailRow('Notas de Corrección', rejection.correctionNotes!),
+                      _DetailRow(
+                          'Notas de Corrección', rejection.correctionNotes!),
 
                     const SizedBox(height: 16),
 
                     // Box codes
-                    if (rejection.boxCodes != null && rejection.boxCodes!.isNotEmpty) ...[
+                    if (rejection.boxCodes != null &&
+                        rejection.boxCodes!.isNotEmpty) ...[
                       const Text(
                         'Cajas Registradas',
                         style: TextStyle(

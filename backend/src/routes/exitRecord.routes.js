@@ -151,13 +151,19 @@ router.post('/batch', async (req, res) => {
       ? 409
       : error.code === 'BOX_DUPLICATED_IN_BATCH'
         ? 400
+        : error.code === 'REJECTED_SERIALS_BLOCKED'
+          ? 409
         : isDatabaseTimeout
           ? 503
           : 500;
     const message = isDatabaseTimeout
       ? 'La base de datos esta ocupada por otro proceso. Intenta registrar la salida nuevamente en unos segundos.'
       : error.message;
-    res.status(statusCode).json({ success: false, error: message });
+    res.status(statusCode).json({
+      success: false,
+      error: message,
+      details: error.details || undefined,
+    });
   }
 });
 

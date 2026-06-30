@@ -46,10 +46,10 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// Obtener rechazo por ID
-router.get('/:id', async (req, res) => {
+// Obtener rechazo por folio
+router.get('/folio/:folio', async (req, res) => {
   try {
-    const rejection = await OqcRejectionModel.getById(req.params.id);
+    const rejection = await OqcRejectionModel.getByFolio(req.params.folio);
     if (!rejection) {
       return res.status(404).json({ success: false, error: 'Rechazo no encontrado' });
     }
@@ -59,10 +59,23 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Obtener rechazo por folio
-router.get('/folio/:folio', async (req, res) => {
+// Obtener detalle de rechazo con piezas para aprobación
+router.get('/:id/details', async (req, res) => {
   try {
-    const rejection = await OqcRejectionModel.getByFolio(req.params.folio);
+    const details = await OqcRejectionModel.getDetails(req.params.id);
+    if (!details) {
+      return res.status(404).json({ success: false, error: 'Rechazo no encontrado' });
+    }
+    res.json({ success: true, data: details });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Obtener rechazo por ID
+router.get('/:id', async (req, res) => {
+  try {
+    const rejection = await OqcRejectionModel.getById(req.params.id);
     if (!rejection) {
       return res.status(404).json({ success: false, error: 'Rechazo no encontrado' });
     }
@@ -82,7 +95,8 @@ router.post('/', async (req, res) => {
       expected_quantity,
       actual_quantity,
       rejection_reason,
-      box_codes
+      box_codes,
+      boxes
     } = req.body;
 
     if (!part_number_id || !operator_id || !rejection_reason) {
@@ -101,12 +115,32 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Aprobar rechazo completo o parcial con PIN de supervisor
+router.post('/:id/approve', async (req, res) => {
+  try {
+    const { supervisor_pin, approved_serials } = req.body;
+    const result = await OqcRejectionModel.approve(
+      req.params.id,
+      supervisor_pin,
+      approved_serials
+    );
+    res.json({ success: true, data: result.rejection, supervisor: result.supervisor });
+  } catch (error) {
+    const statusCode = error.code === 'INVALID_SUPERVISOR_PIN'
+      ? 401
+      : ['SUPERVISOR_PIN_REQUIRED', 'NO_SERIALS_SELECTED', 'NO_VALID_SERIALS'].includes(error.code)
+        ? 400
+        : 500;
+    res.status(statusCode).json({ success: false, error: error.message });
+  }
+});
+
 // Actualizar estado del rechazo
 router.patch('/:id/status', async (req, res) => {
   try {
     const { status, corrected_by, correction_notes } = req.body;
 
-    const validStatuses = ['pending', 'in_review', 'corrected', 'returned'];
+    const validStatuses = ['rejected', 'approved', 'partial_approved', 'released'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,

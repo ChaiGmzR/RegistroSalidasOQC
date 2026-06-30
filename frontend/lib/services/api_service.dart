@@ -12,20 +12,21 @@ class ApiService {
   static final _log = LoggerService();
 
   /// Decodifica JSON de forma segura. Si la respuesta es HTML (404), lanza un error descriptivo.
-  static Map<String, dynamic> _safeJsonDecode(http.Response response, String endpoint) {
+  static Map<String, dynamic> _safeJsonDecode(
+      http.Response response, String endpoint) {
     if (response.body.trimLeft().startsWith('<')) {
       _log.error('API', '$endpoint: El backend devolvió HTML en lugar de JSON',
           'HTTP ${response.statusCode}\n${response.body.substring(0, response.body.length.clamp(0, 200))}');
-      throw Exception(
-          'El backend devolvió HTML (HTTP ${response.statusCode}). '
+      throw Exception('El backend devolvió HTML (HTTP ${response.statusCode}). '
           'Posible ruta no encontrada o backend desactualizado.');
     }
     try {
       return json.decode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      _log.error('API', '$endpoint: Error parseando JSON', 
+      _log.error('API', '$endpoint: Error parseando JSON',
           'HTTP ${response.statusCode}, Body: ${response.body.substring(0, response.body.length.clamp(0, 200))}');
-      throw Exception('Respuesta inválida del servidor (HTTP ${response.statusCode})');
+      throw Exception(
+          'Respuesta inválida del servidor (HTTP ${response.statusCode})');
     }
   }
 
@@ -55,8 +56,10 @@ class ApiService {
           return list;
         }
       }
-      _log.error('API', 'getPartNumbers HTTP ${response.statusCode}', response.body);
-      throw Exception('Error al obtener números de parte (HTTP ${response.statusCode})');
+      _log.error(
+          'API', 'getPartNumbers HTTP ${response.statusCode}', response.body);
+      throw Exception(
+          'Error al obtener números de parte (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getPartNumbers', e.toString());
       throw Exception('Error de conexión: $e');
@@ -148,8 +151,10 @@ class ApiService {
           return list;
         }
       }
-      _log.error('API', 'getEsdBoxes HTTP ${response.statusCode}', response.body);
-      throw Exception('Error al obtener cajas ESD (HTTP ${response.statusCode})');
+      _log.error(
+          'API', 'getEsdBoxes HTTP ${response.statusCode}', response.body);
+      throw Exception(
+          'Error al obtener cajas ESD (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getEsdBoxes', e.toString());
       throw Exception('Error de conexión: $e');
@@ -176,8 +181,10 @@ class ApiService {
           return list;
         }
       }
-      _log.error('API', 'getOperators HTTP ${response.statusCode}', response.body);
-      throw Exception('Error al obtener operadores (HTTP ${response.statusCode})');
+      _log.error(
+          'API', 'getOperators HTTP ${response.statusCode}', response.body);
+      throw Exception(
+          'Error al obtener operadores (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getOperators', e.toString());
       throw Exception('Error de conexión: $e');
@@ -323,8 +330,10 @@ class ApiService {
           return list;
         }
       }
-      _log.error('API', 'getExitRecords HTTP ${response.statusCode}', response.body);
-      throw Exception('Error al obtener registros (HTTP ${response.statusCode})');
+      _log.error(
+          'API', 'getExitRecords HTTP ${response.statusCode}', response.body);
+      throw Exception(
+          'Error al obtener registros (HTTP ${response.statusCode})');
     } catch (e) {
       _log.error('API', 'Error getExitRecords', e.toString());
       throw Exception('Error de conexión: $e');
@@ -366,7 +375,8 @@ class ApiService {
     required List<Map<String, dynamic>> boxes,
   }) async {
     try {
-      _log.info('API', 'Creando registro batch con ${boxes.length} cajas', 'PartNumber ID: $partNumberId, Destino: $destination');
+      _log.info('API', 'Creando registro batch con ${boxes.length} cajas',
+          'PartNumber ID: $partNumberId, Destino: $destination');
       final now = DateTime.now();
       final exitDateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
@@ -393,7 +403,8 @@ class ApiService {
       final data = _safeJsonDecode(response, 'API');
 
       if (response.statusCode == 201 && data['success']) {
-        _log.info('API', 'Registro batch creado', 'Folio: ${data['folio']}, Registros: ${data['recordsCreated']}');
+        _log.info('API', 'Registro batch creado',
+            'Folio: ${data['folio']}, Registros: ${data['recordsCreated']}');
         return {
           'success': true,
           'folio': data['folio'],
@@ -401,11 +412,29 @@ class ApiService {
         };
       }
       _log.error('API', 'Error al crear registros batch', data.toString());
-      throw Exception(data['error'] ?? 'Error al crear registros');
+      throw Exception(_formatReleaseError(data));
     } catch (e) {
       _log.error('API', 'Error createExitRecordWithBoxes', e.toString());
       throw Exception('Error: $e');
     }
+  }
+
+  static String _formatReleaseError(Map<String, dynamic> data) {
+    final details = data['details'];
+    if (details is! List || details.isEmpty) {
+      return data['error'] ?? 'Error al crear registros';
+    }
+
+    final lines = details.map((item) {
+      final detail = item as Map<String, dynamic>;
+      return 'Box ${detail['box_id_actual'] ?? '-'} | '
+          'Serial ${detail['serial'] ?? '-'} | '
+          'Rechazo ${detail['folio_rechazo'] ?? '-'} | '
+          'Box rechazo ${detail['box_id_rechazo_original'] ?? '-'} | '
+          '${detail['reason'] ?? ''}';
+    }).join('\n');
+
+    return '${data['error'] ?? 'Piezas bloqueadas por rechazo'}\n$lines';
   }
 
   static Future<ExitRecord> createExitRecord(ExitRecord record) async {
@@ -530,7 +559,8 @@ class ApiService {
           _log.info('API', 'Health check: OK');
         }
       } else {
-        _log.error('API', 'Health check FAILED', 'Status: ${response.statusCode}, Body: ${response.body}');
+        _log.error('API', 'Health check FAILED',
+            'Status: ${response.statusCode}, Body: ${response.body}');
       }
       return healthy;
     } catch (e) {
@@ -590,6 +620,7 @@ class ApiService {
     required int actualQuantity,
     required String rejectionReason,
     String? boxCodes,
+    List<Map<String, dynamic>> boxes = const [],
   }) async {
     try {
       final response = await http
@@ -604,6 +635,7 @@ class ApiService {
               'actual_quantity': actualQuantity,
               'rejection_reason': rejectionReason,
               'box_codes': boxCodes,
+              'boxes': boxes,
             }),
           )
           .timeout(ApiConfig.connectionTimeout);
@@ -670,6 +702,53 @@ class ApiService {
       return 0;
     } catch (e) {
       return 0;
+    }
+  }
+
+  static Future<OqcRejectionDetails> getOqcRejectionDetails(int id) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.oqcRejections}/$id/details'),
+          )
+          .timeout(ApiConfig.connectionTimeout);
+
+      final data = _safeJsonDecode(response, 'API');
+      if (response.statusCode == 200 && data['success']) {
+        return OqcRejectionDetails.fromJson(data['data']);
+      }
+
+      throw Exception(data['error'] ?? 'Error al obtener detalle de rechazo');
+    } catch (e) {
+      throw Exception('Error: $e');
+    }
+  }
+
+  static Future<OqcRejection> approveOqcRejection({
+    required int id,
+    required String supervisorPin,
+    required List<String> approvedSerials,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.oqcRejections}/$id/approve'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({
+              'supervisor_pin': supervisorPin,
+              'approved_serials': approvedSerials,
+            }),
+          )
+          .timeout(ApiConfig.connectionTimeout);
+
+      final data = _safeJsonDecode(response, 'API');
+      if (response.statusCode == 200 && data['success']) {
+        return OqcRejection.fromJson(data['data']);
+      }
+
+      throw Exception(data['error'] ?? 'Error al aprobar rechazo');
+    } catch (e) {
+      throw Exception('Error: $e');
     }
   }
 }
