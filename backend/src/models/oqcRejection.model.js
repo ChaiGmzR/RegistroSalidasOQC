@@ -371,31 +371,16 @@ class OqcRejectionModel {
     const serialToCurrentBox = new Map(
       serials.map((item) => [item.serial, item.box_code])
     );
-    const serialsByCurrentBox = serials.reduce((acc, item) => {
-      if (!acc[item.box_code]) acc[item.box_code] = new Set();
-      acc[item.box_code].add(item.serial);
-      return acc;
-    }, {});
-    const matchesByCurrentBox = matches.reduce((acc, item) => {
-      const currentBoxCode = serialToCurrentBox.get(item.serial) || '';
-      if (!acc[currentBoxCode]) acc[currentBoxCode] = new Set();
-      acc[currentBoxCode].add(item.serial);
-      return acc;
-    }, {});
 
     const blocked = [];
     for (const match of matches) {
       const currentBoxCode = serialToCurrentBox.get(match.serial) || '';
       let reason = null;
-      const totalSerialsInBox = serialsByCurrentBox[currentBoxCode]?.size || 0;
-      const matchedSerialsInBox = matchesByCurrentBox[currentBoxCode]?.size || 0;
 
       if (match.status === 'released' || match.rejection_status === 'released') {
         reason = 'La pieza ya fue liberada previamente';
       } else if (match.status === 'rejected' || match.rejection_status === 'rejected') {
         reason = 'La pieza pertenece a un rechazo sin aprobar';
-      } else if (matchedSerialsInBox > 0 && totalSerialsInBox !== matchedSerialsInBox) {
-        reason = 'La caja contiene piezas mezcladas; libere solo piezas aprobadas del rechazo';
       } else if (
         match.rejection_status === 'partial_approved' &&
         currentBoxCode === match.original_box_code
