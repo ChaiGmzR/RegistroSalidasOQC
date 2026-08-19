@@ -8,6 +8,7 @@ import '../providers/app_provider.dart';
 import '../models/exit_record.dart';
 import '../models/oqc_rejection.dart';
 import '../services/api_service.dart';
+import '../services/print_service.dart';
 import '../theme/app_theme.dart';
 
 class ExitRecordsScreen extends StatefulWidget {
@@ -720,6 +721,115 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
     );
   }
 
+  List<Map<String, String>> _buildRejectionBoxesData(
+    OqcRejection rejection,
+    List<OqcRejectionItem> items,
+  ) {
+    if (items.isNotEmpty) {
+      final grouped = <String, List<OqcRejectionItem>>{};
+      for (final item in items) {
+        grouped.putIfAbsent(item.originalBoxCode, () => []).add(item);
+      }
+
+      return grouped.entries.map((entry) {
+        final partNumber = entry.value
+                .map((item) => item.partNumber)
+                .firstWhere((value) => value != null && value.isNotEmpty,
+                    orElse: () => rejection.partNumber) ??
+            '';
+
+        return {
+          'boxCode': entry.key,
+          'lqcDate': '',
+          'quantity': entry.value.length.toString(),
+          'partNumber': partNumber,
+        };
+      }).toList();
+    }
+
+    final boxCodes = rejection.boxCodes;
+    if (boxCodes == null || boxCodes.trim().isEmpty) {
+      return const [];
+    }
+
+    final boxes = <Map<String, String>>[];
+    final regex =
+        RegExp(r'([^,:\n]+?)\s*:\s*(\d+)\s*pzas?', caseSensitive: false);
+
+    for (final match in regex.allMatches(boxCodes)) {
+      boxes.add({
+        'boxCode': match.group(1)?.trim() ?? '',
+        'lqcDate': '',
+        'quantity': match.group(2) ?? '',
+        'partNumber': rejection.partNumber ?? '',
+      });
+    }
+
+    return boxes;
+  }
+
+  int _resolveRejectionPrintQuantity(
+    OqcRejection rejection,
+    OqcRejectionDetails details,
+    List<Map<String, String>> boxesData,
+  ) {
+    if (details.items.isNotEmpty) {
+      return details.items.length;
+    }
+
+    final boxesQuantity = boxesData.fold<int>(
+      0,
+      (sum, box) => sum + (int.tryParse(box['quantity'] ?? '') ?? 0),
+    );
+    if (boxesQuantity > 0) return boxesQuantity;
+
+    return rejection.displayQuantity;
+  }
+
+  Future<void> _reprintRejectionTicket(OqcRejection rejection) async {
+    if (rejection.id == null || rejection.rejectionFolio == null) return;
+
+    try {
+      final details = await ApiService.getOqcRejectionDetails(rejection.id!);
+      final printRejection = details.rejection;
+      final boxesData = _buildRejectionBoxesData(printRejection, details.items);
+      final quantity =
+          _resolveRejectionPrintQuantity(printRejection, details, boxesData);
+
+      final success = await PrintService.printRejectionTicket(
+        rejectionFolio: printRejection.rejectionFolio ?? '',
+        exitFolio:
+            printRejection.exitFolio ?? printRejection.rejectionFolio ?? '',
+        partNumber: printRejection.partNumber ?? '',
+        quantity: quantity,
+        operatorName: printRejection.operatorName ?? '',
+        operatorId: printRejection.employeeId ?? '',
+        observations: printRejection.rejectionReason,
+        boxesData: boxesData,
+        rejectionDate: printRejection.rejectionDate ?? DateTime.now(),
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success
+              ? 'Formato de rechazo enviado a impresión'
+              : 'No se pudo reimprimir el formato'),
+          backgroundColor:
+              success ? AppTheme.successColor : AppTheme.errorColor,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al reimprimir: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
   Widget _buildRechazosDataTable(List<OqcRejection> records) {
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -730,7 +840,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
           headingRowHeight: 56,
           columnSpacing: 12,
           horizontalMargin: 12,
-          minWidth: 980,
+          minWidth: 1040,
           border: TableBorder(
             verticalInside: BorderSide(color: Colors.grey.shade200, width: 0.5),
             horizontalInside:
@@ -772,7 +882,7 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
             ),
             DataColumn2(
               label: Text('Acciones'),
-              size: ColumnSize.S,
+              size: ColumnSize.M,
             ),
           ],
           rows: records.map((record) {
@@ -834,6 +944,11 @@ class _ExitRecordsScreenState extends State<ExitRecordsScreen>
                         icon: const Icon(Icons.visibility, size: 20),
                         onPressed: () => _showRejectionDetails(record),
                         tooltip: 'Ver detalles',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.print, size: 20),
+                        onPressed: () => _reprintRejectionTicket(record),
+                        tooltip: 'Reimprimir formato',
                       ),
                       if (record.canApprove)
                         IconButton(

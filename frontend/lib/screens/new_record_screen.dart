@@ -840,7 +840,7 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
               .toList(),
           'partNumber':
               _selectedPartNumber?.partNumber ?? _extractedPartNumber ?? '',
-          'partDescription': _selectedPartNumber?.description ?? '',
+          'quantity': _totalQuantity.toString(),
           'operatorName': _selectedOperator?.name ?? '',
           'operatorId': _selectedOperator?.employeeId ?? '',
           'observations': _observationsController.text,
@@ -1046,13 +1046,19 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
             })
         .toList()
         .cast<Map<String, String>>();
+    final printQuantity = int.tryParse(
+          (printData['quantity'] ?? '').toString(),
+        ) ??
+        boxesData.fold<int>(
+          0,
+          (sum, box) => sum + (int.tryParse(box['quantity'] ?? '') ?? 0),
+        );
 
     await PrintService.printRejectionTicket(
       rejectionFolio: rejectionFolio,
       exitFolio: folio,
       partNumber: printData['partNumber'] ?? '',
-      partDescription: printData['partDescription'] ?? '',
-      quantity: _totalQuantity,
+      quantity: printQuantity,
       operatorName: printData['operatorName'] ?? '',
       operatorId: printData['operatorId'] ?? '',
       observations: printData['observations'] ?? '',

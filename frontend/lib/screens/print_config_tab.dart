@@ -86,7 +86,6 @@ class _PrintConfigTabState extends State<PrintConfigTab> {
       rejectionFolio: 'TEST-001',
       exitFolio: 'OQC260108TEST',
       partNumber: 'PN-TEST-12345',
-      partDescription: 'Producto de prueba para verificar impresión',
       quantity: 100,
       operatorName: 'Usuario de Prueba',
       operatorId: 'EMP001',
