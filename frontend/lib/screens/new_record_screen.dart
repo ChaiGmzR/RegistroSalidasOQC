@@ -218,7 +218,11 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
     _focusField(_pcbFocusNode, _pcbController);
   }
 
-  /// Extrae el número de parte de un código QR escaneado
+  /// Prefijos de números de parte soportados por las etiquetas OQC.
+  static final RegExp _partNumberPattern =
+      RegExp(r'(?:EBR|ACQ|ABQ|AJJ)\d+', caseSensitive: false);
+
+  /// Extrae el número de parte de un código QR escaneado.
   /// Formato 1: EBR30299301922601070001 -> EBR30299301 (primeros 11 chars)
   /// Formato 2: I20260106-0011-1142;MAIN;EBR80757422;1; -> EBR80757422 (tercer elemento)
   String? _extractPartNumberFromQR(String qrCode) {
@@ -232,21 +236,24 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
       final parts = normalized.split(';');
       if (parts.length >= 3) {
         // El número de parte está en la posición 2 (índice 2)
-        final partNumber = parts[2].trim().toUpperCase();
-        if (partNumber.isNotEmpty && partNumber.startsWith('EBR')) {
-          return partNumber;
+        final partNumber = parts[2].trim();
+        final partNumberMatch = _partNumberPattern.firstMatch(partNumber);
+        if (partNumberMatch != null && partNumberMatch.start == 0) {
+          return partNumberMatch.group(0)!.toUpperCase();
         }
       }
       return null;
     }
 
-    // Formato 1: Código largo que empieza con EBR (case-insensitive)
-    if (upperTrimmed.startsWith('EBR') && trimmed.length >= 11) {
+    // Formato 1: Código largo que empieza con un prefijo soportado.
+    if (_partNumberPattern.matchAsPrefix(upperTrimmed) != null &&
+        trimmed.length >= 11) {
       return upperTrimmed.substring(0, 11);
     }
 
     // Si ya es un número de parte corto (11 chars)
-    if (trimmed.length == 11 && upperTrimmed.startsWith('EBR')) {
+    if (trimmed.length == 11 &&
+        _partNumberPattern.matchAsPrefix(upperTrimmed) != null) {
       return upperTrimmed;
     }
 
@@ -258,11 +265,11 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
   /// Usa regex para ser robusto ante diferentes separadores del scanner.
   ///
   /// Formato tipo Oven (ej: "3608'EBR43713608'Oven'20'TR0330?021"):
-  ///   - PN: busca patrón EBR seguido de dígitos
+  ///   - PN: busca un prefijo soportado seguido de dígitos
   ///   - Qty: número después de "Oven" + cualquier separador
   ///
   /// Formato tipo P-No (ej: "P-NoEBR80757421LineR1Qty20Description..."):
-  ///   - PN: busca patrón EBR seguido de dígitos
+  ///   - PN: busca un prefijo soportado seguido de dígitos
   ///   - Qty: número después de "Qty"
   Map<String, dynamic>? _extractFromLabel(String labelCode) {
     final trimmed = labelCode.trim();
@@ -270,8 +277,8 @@ class _NewRecordScreenState extends State<NewRecordScreen> {
 
     final upper = trimmed.toUpperCase();
 
-    // 1. Extraer número de parte: buscar EBR seguido de dígitos (ej: EBR80757421, EBR43713608)
-    final pnMatch = RegExp(r'EBR\d+', caseSensitive: false).firstMatch(trimmed);
+    // 1. Extraer número de parte: EBR, ACQ, ABQ o AJJ seguido de dígitos.
+    final pnMatch = _partNumberPattern.firstMatch(trimmed);
     final partNumber = pnMatch?.group(0)?.toUpperCase();
 
     // 2. Extraer cantidad
