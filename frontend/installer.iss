@@ -47,7 +47,6 @@ Source: "{#SourcePath}\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Fl
 
 ; === BACKEND (Node.js compilado) ===
 Source: "{#BackendPath}\dist\oqc-backend.exe"; DestDir: "{app}\backend"; Flags: ignoreversion
-Source: "{#BackendPath}\dist\.env"; DestDir: "{app}\backend"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
